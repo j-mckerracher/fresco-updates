@@ -1,0 +1,35 @@
+@startuml
+start
+:Run cell 1;
+:Provide directory path in 'Path' field;
+:Run cell 2;
+
+if (Data preprocessing needed?) then (yes)
+    :Run cell 3;
+    :Provide start time and end times;
+    :Run cell 4;
+    :Select units for timeseries data;
+    :Run cell 5;
+    :Provide desired options;
+    :Run cell 6;
+    :Provide desired statistic;
+    :Run cell 7;
+    :Provide data visualisation options;
+    :Run cell 8;
+    :View data visualizations;
+    stop
+else (no)
+    :Run cell 4;
+    :Provide start time, end times and select units for timeseries data;
+    :Run cell 5;
+    :Provide desired options;
+    :Run cell 6;
+    :Provide desired statistic;
+    :Run cell 7;
+    :Provide data visualisation options;
+    :Run cell 8;
+    :View data visualizations;
+    stop
+endif
+
+@enduml
