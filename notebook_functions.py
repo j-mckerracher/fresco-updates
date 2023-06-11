@@ -58,5 +58,45 @@ def get_account_logs_by_job_ids(job_ids: str) -> pd.DataFrame:
 
 
 # -------------- CELL 7 --------------
-def get_stat():
+def get_average():
+    pass
+
+
+def get_mean():
+    pass
+
+
+def get_median():
+    pass
+
+
+def get_standard_deviation():
+    pass
+
+
+def get_probability_density():
+    pass
+
+
+def get_cumulative_density():
+    pass
+
+
+def get_data_points_outside_threshold():
+    pass
+
+
+def get_ratio_of_data_points_outside_threshold():
+    pass
+
+
+def calculate_correlation():
+    pass
+
+
+# -------------- CELL 8 --------------
+# TBD
+
+# -------------- CELL 10 --------------
+def get_files():
     pass

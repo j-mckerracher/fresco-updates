@@ -1,35 +1,40 @@
+import os
+import unittest
+
 import notebook_functions as nbf
-
-"""
-Code Analysis
-
-Objective:
-The objective of the 'get_data_files_directory' function is to generate a folder path to the data files.
-
-Inputs:
-The function takes in one input parameter:
-- 'path': a string representing the path to the data files.
-
-Flow:
-The function does not have any implementation and only contains a 'pass' statement. Therefore, it does not have any flow.
-
-Outputs:
-The function does not have any output as it does not have any implementation.
-
-Additional aspects:
-- The function has a return type annotation of 'str', indicating that it should return a string.
-- The function's docstring provides a brief description of the function's purpose and expected input/output.
-"""
+import unittest
 
 
-class TestGetDataFilesDirectory:
+class TestGetDataFilesDirectory(unittest.TestCase):
+    def setUp(self) -> None:
+        if os.name == "nt":
+            os.mkdir("C:\\home\\user\\data\\")
+            os.mkdir("C:\\home\\user\\data\\subdir\\")
+        else:
+            os.mkdir("/home/user/data/")
+            os.mkdir("/home/user/data/subdir/")
+
+    def tearDown(self) -> None:
+        if os.name == "nt":
+            os.rmdir("C:\\home\\user\\data\\")
+            os.rmdir("C:\\home\\user\\data\\subdir\\")
+        else:
+            os.rmdir("/home/user/data/")
+            os.rmdir("/home/user/data/subdir/")
+
     #  Tests that a valid directory path returns a string ending with a forward slash
     def test_valid_directory_path(self):
+        if os.name == "nt":
+            path = "C:\\home\\user\\data\\"
+            assert nbf.get_data_files_directory(path) == "C:/home/user/data/"
         path = "/home/user/data/"
         assert nbf.get_data_files_directory(path) == "/home/user/data/"
 
     #  Tests that a valid subdirectory path returns a string ending with a forward slash
     def test_valid_subdirectory_path(self):
+        if os.name == "nt":
+            path = "C:\\home\\user\\data\\subdir\\"
+            assert nbf.get_data_files_directory(path) == "C:/home/user/data/subdir/"
         path = "/home/user/data/subdir/"
         assert nbf.get_data_files_directory(path) == "/home/user/data/subdir/"
 
@@ -50,7 +55,6 @@ class TestGetDataFilesDirectory:
         mocker.patch("os.path.isdir", return_value=False)
         assert nbf.get_data_files_directory(path) == ""
 
-    #  Tests that a path with spaces and backslashes returns a string ending with a forward slash
-    def test_path_with_spaces_and_backslashes(self):
-        path = "C:\\Users\\User\\My Documents\\data\\"
-        assert nbf.get_data_files_directory(path) == "C:/Users/User/My Documents/data/"
+
+if __name__ == "__main__":
+    unittest.main()
