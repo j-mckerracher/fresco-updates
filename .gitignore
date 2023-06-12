@@ -1,0 +1,12 @@
+.pytest_cache/
+/htmlcov/
+*.pyc
+
+# VSCode settings
+.vscode
+
+# JetBrains IDEs
+out/
+.idea/**
+*.iws
+*.iml
