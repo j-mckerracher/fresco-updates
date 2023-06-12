@@ -63,8 +63,6 @@ def setup_widgets(unit_values, value):
 
     def on_button_clicked(b):
         unit_values[value] = (low_value.value, high_value.value)
-        print(f"Saved values for {value}: Low={low_value.value}, High={high_value.value}")
-        print(f"Current unit_values: {unit_values}")
 
     button.on_click(on_button_clicked)
 
