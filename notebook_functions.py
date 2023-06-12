@@ -1,4 +1,8 @@
+import os
+
 import pandas as pd
+from IPython.display import display, FileLink
+from ipywidgets import widgets
 
 
 # -------------- CELL 2 --------------
@@ -36,6 +40,35 @@ def add_interval_column(starting_time, ending_time, path):
 
 
 # -------------- CELL 5 --------------
+def setup_widgets(unit_values, value):
+    print("********************************")
+    print(f"Enter the low value for {value}")
+    low_value = widgets.FloatText(
+        value=0.1,
+        description=f'{value} Low Value:',
+        disabled=False
+    )
+    display(low_value)
+
+    print(f"Enter the high value for {value}")
+    high_value = widgets.FloatText(
+        value=99.9,
+        description=f'{value} High Value:',
+        disabled=False
+    )
+    display(high_value)
+
+    button = widgets.Button(description="Save Values")
+    display(button)
+
+    def on_button_clicked(b):
+        unit_values[value] = (low_value.value, high_value.value)
+        print(f"Saved values for {value}: Low={low_value.value}, High={high_value.value}")
+        print(f"Current unit_values: {unit_values}")
+
+    button.on_click(on_button_clicked)
+
+
 node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
              'NODE12', 'NODE13', 'NODE14', 'NODE15', 'NODE16', 'NODE17', 'NODE18', 'NODE19', 'NODE20', 'NODE21',
              'NODE22', 'NODE23', 'NODE24', 'NODE25', 'NODE26', 'NODE27', 'NODE28', 'NODE29', 'NODE30', 'NODE31',
@@ -166,6 +199,11 @@ def get_account_logs_by_job_ids(job_ids: str) -> pd.DataFrame:
     pass
 
 
+def create_download_link(df, title="Download CSV file", filename="data.csv"):
+    df.to_csv(filename, index=False)
+    return FileLink(filename)
+
+
 # -------------- CELL 7 --------------
 def get_average():
     pass
@@ -199,13 +237,30 @@ def get_ratio_of_data_points_outside_threshold():
     pass
 
 
+# -------------- CELL 8 --------------
 def calculate_correlation():
     pass
 
 
-# -------------- CELL 8 --------------
-# TBD
+# -------------- CELL 9 --------------
+# Function to generate download link
+def create_download_file_link(file_list):
+    links = []
+    for file_name in file_list:
+        file_path = os.path.join("./", file_name)  # Adjust the path when we know where they'll be
+        if os.path.isfile(file_path):
+            links.append(FileLink(file_path))
+        else:
+            print(f"File {file_name} does not exist.")
+    return links
 
-# -------------- CELL 10 --------------
-def get_files():
-    pass
+
+# Function to be linked to the button, to execute the file download.
+def on_download_button_clicked(b, widget_value):
+    download_files = widget_value.value
+    if download_files:
+        links = create_download_file_link(download_files)
+        for link in links:
+            display(link)
+    else:
+        print("No file selected for download.")
