@@ -1,5 +1,4 @@
 import os
-
 import pandas as pd
 from IPython.display import display, FileLink
 from ipywidgets import widgets
@@ -61,10 +60,10 @@ def setup_widgets(unit_values, value):
     button = widgets.Button(description="Save Values")
     display(button)
 
-    def on_button_clicked(b):
+    def on_button_clicked_save(b):
         unit_values[value] = (low_value.value, high_value.value)
 
-    button.on_click(on_button_clicked)
+    button.on_click(on_button_clicked_save)
 
 
 node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
@@ -197,7 +196,7 @@ def get_account_logs_by_job_ids(job_ids: str) -> pd.DataFrame:
     pass
 
 
-def create_download_link(df, title="Download CSV file", filename="data.csv"):
+def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
     df.to_csv(filename, index=False)
     return FileLink(filename)
 
