@@ -1,13 +1,16 @@
 import os
+import numpy as np
 import pandas as pd
 from IPython.display import display, FileLink
 from ipywidgets import widgets
+from datetime import datetime
 
 
 # -------------- CELL 2 --------------
 def get_data_files_directory(path) -> str:
     """
     This function should produce a folder path to the data files.
+
     :param path:
     :return:
     """
@@ -18,6 +21,7 @@ def get_data_files_directory(path) -> str:
 def handle_missing_metrics(starting_time, ending_time, path):
     """
     This function should remove the rows within the given timeframe that are missing metrics.
+
     :param starting_time:
     :param ending_time:
     :param path:
@@ -26,16 +30,82 @@ def handle_missing_metrics(starting_time, ending_time, path):
     pass
 
 
-def add_interval_column(starting_time, ending_time, path):
+def extract_month_year(date_string: str):
     """
-    This function should add an interval column to the data that falls within the given timeframe. The interval column
-    should reflect the length of each timestamp.
-    :param starting_time:
-    :param ending_time:
-    :param path:
-    :return:
+    This function extracts the month (in 3 letter form, e.g. 'Jan') and the year
+    (in four digit form, e.g. '2022') from a string in the format 'mm-dd-yyyy hh:mm:ss'.
+
+    :param date_string: A string representing a date in the format 'mm-dd-yyyy hh:mm:ss'.
+    :return: Two strings representing the month and the year extracted from the input date string.
     """
-    pass
+    date = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
+    month = date.strftime('%b')  # returns month in 3 letter form, e.g. 'Jan'
+    year = date.strftime('%Y')  # returns year in 4 digits, e.g. '2022'
+    return month, year
+
+
+def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.DataFrame:
+    """
+    This function reads two CSV files from a specified path that contain job timestamp metrics and job accounting
+    information respectively. It then merges the dataframes on the 'Job Id' column, and processes them to add an
+    'Interval' column.
+
+    The 'Interval' column represents the time difference between each row and the next for each group of 'Job Id',
+    'Host', 'Event'. If the 'Interval' is NaN, the 'End Time' is subtracted from the 'Timestamp'. If it's not the
+    same sample, the minimum value between the current 'Interval' value and the difference between the given ending
+    time and 'Timestamp' is used.
+
+    Parameters:
+    :param starting_time: The starting datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
+    :param ending_time: The ending datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
+    :param path: The directory path where the CSV files are located.
+
+    Returns:
+    :return pd.DataFrame: The processed DataFrame with an added 'Interval' column.
+    """
+    month, year = extract_month_year(starting_time)
+
+    # get the required DataFrames
+    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+    account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
+    
+    # Convert the 'Timestamp' and 'End Time' columns to datetime
+    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
+    account_log['End Time'] = pd.to_datetime(account_log['End Time'])
+    
+    # Remove the rows that are not within the given timeframe
+    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
+    time_series = time_series.loc[mask]
+    
+    # Merge both dataframes on the 'Job Id' column
+    merged_df = pd.merge(time_series, account_log, on='Job Id', how='inner')
+    
+    # Now we set a multi-index
+    merged_df.set_index(['Job Id', 'Host', 'Event'], inplace=True)
+    merged_df.sort_index(inplace=True)
+    
+    merged_df['Interval'] = merged_df.groupby(level=[0, 1, 2])['Timestamp'].diff().shift(-1).dt.total_seconds()
+    
+    end_time_of_each_job = merged_df['End Time'].values
+    is_same_sample = merged_df.index.to_series().shift() == merged_df.index.to_series()
+    
+    # Align series based on the index before performing subtraction
+    end_time_series = pd.Series(end_time_of_each_job, index=merged_df.index)
+    na_intervals_timestamp = merged_df.loc[merged_df['Interval'].isnull(), 'Timestamp']
+    aligned_end_time_series, aligned_na_intervals_timestamp = end_time_series.align(na_intervals_timestamp)
+    
+    # Update the 'Interval' column where 'Interval' is NaN
+    merged_df.loc[merged_df['Interval'].isnull(), 'Interval'] = (
+        aligned_end_time_series - aligned_na_intervals_timestamp
+    ).dt.total_seconds()
+    
+    # Where it's not the same sample, replace w/ minimum between Interval and difference between Z2 and current time
+    merged_df.loc[~is_same_sample, 'Interval'] = np.minimum(
+        merged_df.loc[~is_same_sample, 'Interval'],
+        (pd.to_datetime(ending_time) - merged_df.loc[~is_same_sample, 'Timestamp']).dt.total_seconds()
+    )
+
+    return merged_df
 
 
 # -------------- CELL 5 --------------
