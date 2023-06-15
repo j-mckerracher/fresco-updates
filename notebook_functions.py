@@ -108,6 +108,8 @@ def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.D
         (pd.to_datetime(ending_time) - merged_df.loc[~is_same_sample, 'Timestamp']).dt.total_seconds()
     )
 
+    merged_df = merged_df.reset_index()[['Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp', 'Interval']]
+
     return merged_df
 
 
