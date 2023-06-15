@@ -68,37 +68,40 @@ def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.D
     # get the required DataFrames
     time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
     account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
-    
+
     # Convert the 'Timestamp' and 'End Time' columns to datetime
     time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
-    
+
     # Remove the rows that are not within the given timeframe
     mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
     time_series = time_series.loc[mask]
-    
+
     # Merge both dataframes on the 'Job Id' column
     merged_df = pd.merge(time_series, account_log, on='Job Id', how='inner')
-    
+
+    # Drop duplicates based on the columns that will form the multi-index
+    merged_df = merged_df.drop_duplicates(subset=['Job Id', 'Host', 'Event'])
+
     # Now we set a multi-index
     merged_df.set_index(['Job Id', 'Host', 'Event'], inplace=True)
     merged_df.sort_index(inplace=True)
-    
+
     merged_df['Interval'] = merged_df.groupby(level=[0, 1, 2])['Timestamp'].diff().shift(-1).dt.total_seconds()
-    
+
     end_time_of_each_job = merged_df['End Time'].values
     is_same_sample = merged_df.index.to_series().shift() == merged_df.index.to_series()
-    
+
     # Align series based on the index before performing subtraction
     end_time_series = pd.Series(end_time_of_each_job, index=merged_df.index)
     na_intervals_timestamp = merged_df.loc[merged_df['Interval'].isnull(), 'Timestamp']
     aligned_end_time_series, aligned_na_intervals_timestamp = end_time_series.align(na_intervals_timestamp)
-    
+
     # Update the 'Interval' column where 'Interval' is NaN
     merged_df.loc[merged_df['Interval'].isnull(), 'Interval'] = (
-        aligned_end_time_series - aligned_na_intervals_timestamp
+            aligned_end_time_series - aligned_na_intervals_timestamp
     ).dt.total_seconds()
-    
+
     # Where it's not the same sample, replace w/ minimum between Interval and difference between Z2 and current time
     merged_df.loc[~is_same_sample, 'Interval'] = np.minimum(
         merged_df.loc[~is_same_sample, 'Interval'],
