@@ -58,7 +58,6 @@ class NotebookFunctionsUnitTests(unittest.TestCase):
         self.assertEqual(month, expected_month)
         self.assertEqual(year, expected_year)
 
-
     def test_happy_path(self):
         # Arrange
         df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
