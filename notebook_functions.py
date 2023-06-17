@@ -1,9 +1,10 @@
 import os
 import numpy as np
 import pandas as pd
-from IPython.display import display, FileLink
+from IPython.display import display, FileLink, clear_output
 from ipywidgets import widgets
 from datetime import datetime
+import calendar
 
 
 # -------------- CELL 2 --------------
@@ -14,20 +15,77 @@ def get_data_files_directory(path) -> str:
     :param path:
     :return:
     """
-    pass
+    return path
 
 
 # -------------- CELL 4 --------------
+def validate_times(start, end, start_widg, end_widg, save_b):
+    clear_output(wait=True)
+    format_str = '%Y-%m-%d %H:%M:%S'  # The format
+    valid = True
+    valid_t = "2023-06-17 15:30:00"
+
+    try:
+        start_time = datetime.strptime(start, format_str)
+        end_time = datetime.strptime(end, format_str)
+
+        if start_time >= end_time:
+            print("Please re-enter the times. The start time must be less than the end time.")
+            display(start_widg, end_widg, save_b)
+            return False
+
+    except ValueError:
+        print(f"Please re-enter the times. Both times must be in the correct format. A valid example is {valid_t}")
+        display(start_widg, end_widg, save_b)
+        return False
+
+    for time_str in [(start, "start"), (end, "end")]:
+        time, label = time_str
+        # Try to parse time
+        try:
+            parsed_time = datetime.strptime(time, format_str)
+            year = parsed_time.year
+            month = parsed_time.month
+            day = parsed_time.day
+
+            # Check if day is valid for the month
+            if day > calendar.monthrange(year, month)[1]:
+                print(
+                    f"Please re-enter time. {label}: '{time}' has an invalid day for the month. A valid example is {valid_t}")
+                valid = False
+                display(start_widg, end_widg, save_b)
+        except ValueError:
+            print(f"Please re-enter time. {label}: '{time}' is not in the correct format. A valid example is {valid_t}")
+            valid = False
+            display(start_widg, end_widg, save_b)
+
+    return valid
+
+
 def handle_missing_metrics(starting_time, ending_time, path):
     """
-    This function should remove the rows within the given timeframe that are missing metrics.
+    Loads a CSV file that contains a timestamped time series of job metrics and filters it based on
+    the given starting and ending timestamps. Rows with missing data in the time series are then removed.
 
-    :param starting_time:
-    :param ending_time:
-    :param path:
-    :return:
+    :param starting_time: The beginning of the time frame to consider.
+    :param ending_time: The end of the time frame to consider.
+    :param path: The directory path where the CSV file is located.
+    :return: A pandas DataFrame containing the time series data from the specified time frame,
+             with any rows containing missing data removed.
     """
-    pass
+    month, year = extract_month_year(starting_time)
+
+    # get the required DataFrame
+    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+
+    # Convert the 'Timestamp' to datetime
+    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
+
+    # Remove the rows that are not within the given timeframe
+    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
+    time_series = time_series.loc[mask]
+
+    return time_series.dropna(inplace=True)
 
 
 def extract_month_year(date_string: str):
