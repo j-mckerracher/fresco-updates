@@ -1,4 +1,5 @@
 import os
+import ipywidgets
 import numpy as np
 import pandas as pd
 from IPython.display import display, FileLink, clear_output
@@ -19,7 +20,22 @@ def get_data_files_directory(path) -> str:
 
 
 # -------------- CELL 4 --------------
-def validate_times(start, end, start_widg, end_widg, save_b):
+def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_widget: ipywidgets.Widget, save_b: ipywidgets.Button, unit_widget=None) -> bool:
+    """
+    Validates that the given start and end times are in the correct format and that the start time is earlier than the
+    end time.
+
+    In case of invalid time entries, the function re-displays the corresponding input widgets for user correction.
+
+    :param start: The start time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param end: The end time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param start_widget: The widget to input the start time.
+    :param end_widget: The widget to input the end time.
+    :param save_b: The button widget to save the times.
+    :param unit_widget: (ipywidgets.Widget) An optional widget to display. Defaults to None.
+
+    :return bool: True if the times are valid, False otherwise.
+    """
     clear_output(wait=True)
     format_str = '%Y-%m-%d %H:%M:%S'  # The format
     valid = True
@@ -31,12 +47,18 @@ def validate_times(start, end, start_widg, end_widg, save_b):
 
         if start_time >= end_time:
             print("Please re-enter the times. The start time must be less than the end time.")
-            display(start_widg, end_widg, save_b)
+            if unit_widget is None:
+                display(start_widget, end_widget, save_b)
+            else:
+                display(start_widget, end_widget, save_b, unit_widget)
             return False
 
     except ValueError:
         print(f"Please re-enter the times. Both times must be in the correct format. A valid example is {valid_t}")
-        display(start_widg, end_widg, save_b)
+        if unit_widget is None:
+            display(start_widget, end_widget, save_b)
+        else:
+            display(start_widget, end_widget, save_b, unit_widget)
         return False
 
     for time_str in [(start, "start"), (end, "end")]:
@@ -53,16 +75,22 @@ def validate_times(start, end, start_widg, end_widg, save_b):
                 print(
                     f"Please re-enter time. {label}: '{time}' has an invalid day for the month. A valid example is {valid_t}")
                 valid = False
-                display(start_widg, end_widg, save_b)
+                if unit_widget is None:
+                    display(start_widget, end_widget, save_b)
+                else:
+                    display(start_widget, end_widget, save_b, unit_widget)
         except ValueError:
             print(f"Please re-enter time. {label}: '{time}' is not in the correct format. A valid example is {valid_t}")
             valid = False
-            display(start_widg, end_widg, save_b)
+            if unit_widget is None:
+                display(start_widget, end_widget, save_b)
+            else:
+                display(start_widget, end_widget, save_b, unit_widget)
 
     return valid
 
 
-def handle_missing_metrics(starting_time, ending_time, path):
+def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
     """
     Loads a CSV file that contains a timestamped time series of job metrics and filters it based on
     the given starting and ending timestamps. Rows with missing data in the time series are then removed.
@@ -70,8 +98,8 @@ def handle_missing_metrics(starting_time, ending_time, path):
     :param starting_time: The beginning of the time frame to consider.
     :param ending_time: The end of the time frame to consider.
     :param path: The directory path where the CSV file is located.
-    :return: A pandas DataFrame containing the time series data from the specified time frame,
-             with any rows containing missing data removed.
+    :return: A DataFrame with the time series data from the specified time frame, with any rows containing missing data
+    removed.
     """
     month, year = extract_month_year(starting_time)
 
@@ -88,7 +116,7 @@ def handle_missing_metrics(starting_time, ending_time, path):
     return time_series.dropna(inplace=True)
 
 
-def extract_month_year(date_string: str):
+def extract_month_year(date_string: str) -> tuple:
     """
     This function extracts the month (in 3 letter form, e.g. 'Jan') and the year
     (in four digit form, e.g. '2022') from a string in the format 'mm-dd-yyyy hh:mm:ss'.
@@ -172,7 +200,19 @@ def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.D
 
 
 # -------------- CELL 5 --------------
-def setup_widgets(unit_values, value):
+def setup_widgets(unit_values: dict, value):
+    """
+    Sets up interactive widgets for entering a low and a high value for a given parameter.
+    It also sets up a button to save these values. On button click, the entered values are saved
+    to a given dictionary and the button's description changes to indicate the values are saved.
+
+    Parameters:
+    :param unit_values: The dictionary where the entered values are saved.
+    :param value: The name of the parameter for which the values are being entered.
+
+    Returns:
+    None. This function doesn't return anything; it creates and displays interactive widgets in a Jupyter notebook.
+    """
     print("********************************")
     print(f"Enter the low value for {value}")
     low_value = widgets.FloatText(
@@ -195,6 +235,8 @@ def setup_widgets(unit_values, value):
 
     def on_button_clicked_save(b):
         unit_values[value] = (low_value.value, high_value.value)
+        b.description = "Values Saved!"
+        b.button_style = 'success'  # The button turns green when clicked
 
     button.on_click(on_button_clicked_save)
 
