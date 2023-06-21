@@ -30,6 +30,20 @@ def remove_special_chars(s: str) -> str:
     return cleaned_str
 
 
+def extract_month_year(date_string: str) -> tuple:
+    """
+    This function extracts the month (in 3 letter form, e.g. 'Jan') and the year
+    (in four digit form, e.g. '2022') from a string in the format 'mm-dd-yyyy hh:mm:ss'.
+
+    :param date_string: A string representing a date in the format 'mm-dd-yyyy hh:mm:ss'.
+    :return: Two strings representing the month and the year extracted from the input date string.
+    """
+    date = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
+    month = date.strftime('%b')  # returns month in 3 letter form, e.g. 'Jan'
+    year = date.strftime('%Y')  # returns year in 4 digits, e.g. '2022'
+    return month, year
+
+
 # -------------- CELL 2 --------------
 def get_data_files_directory(path) -> str:
     """
@@ -137,20 +151,6 @@ def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
     time_series = time_series.loc[mask]
 
     return time_series.dropna(inplace=True)
-
-
-def extract_month_year(date_string: str) -> tuple:
-    """
-    This function extracts the month (in 3 letter form, e.g. 'Jan') and the year
-    (in four digit form, e.g. '2022') from a string in the format 'mm-dd-yyyy hh:mm:ss'.
-
-    :param date_string: A string representing a date in the format 'mm-dd-yyyy hh:mm:ss'.
-    :return: Two strings representing the month and the year extracted from the input date string.
-    """
-    date = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
-    month = date.strftime('%b')  # returns month in 3 letter form, e.g. 'Jan'
-    year = date.strftime('%Y')  # returns year in 4 digits, e.g. '2022'
-    return month, year
 
 
 def add_interval_column(starting_time: str, ending_time: str, path: str, df=None) -> pd.DataFrame:
