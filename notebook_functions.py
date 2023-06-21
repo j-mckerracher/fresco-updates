@@ -20,7 +20,8 @@ def get_data_files_directory(path) -> str:
 
 
 # -------------- CELL 4 --------------
-def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_widget: ipywidgets.Widget, save_b: ipywidgets.Button, unit_widget=None) -> bool:
+def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_widget: ipywidgets.Widget,
+                   save_b: ipywidgets.Button, unit_widget=None) -> bool:
     """
     Validates that the given start and end times are in the correct format and that the start time is earlier than the
     end time.
@@ -130,7 +131,7 @@ def extract_month_year(date_string: str) -> tuple:
     return month, year
 
 
-def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.DataFrame:
+def add_interval_column(starting_time: str, ending_time: str, path: str, df=None) -> pd.DataFrame:
     """
     This function reads two CSV files from a specified path that contain job timestamp metrics and job accounting
     information respectively. It then merges the dataframes on the 'Job Id' column, and processes them to add an
@@ -142,6 +143,7 @@ def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.D
     time and 'Timestamp' is used.
 
     Parameters:
+    :param df: Optional argument only provided if the handle_missing_metrics ran before this function.
     :param starting_time: The starting datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
     :param ending_time: The ending datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
     :param path: The directory path where the CSV files are located.
@@ -151,17 +153,26 @@ def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.D
     """
     month, year = extract_month_year(starting_time)
 
+    time_series = pd.DataFrame
+
     # get the required DataFrames
-    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+    if df is None:
+        # Read in csv
+        time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+
+        # Convert the 'Timestamp' and 'End Time' columns to datetime
+        time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
+
+        # Remove the rows that are not within the given timeframe
+        mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
+        time_series = time_series.loc[mask]
+    else:
+        time_series = df
+
     account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
 
-    # Convert the 'Timestamp' and 'End Time' columns to datetime
-    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
+    # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
-
-    # Remove the rows that are not within the given timeframe
-    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
-    time_series = time_series.loc[mask]
 
     # Merge both dataframes on the 'Job Id' column
     merged_df = pd.merge(time_series, account_log, on='Job Id', how='inner')
