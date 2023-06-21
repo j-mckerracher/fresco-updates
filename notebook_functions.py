@@ -6,6 +6,28 @@ from IPython.display import display, FileLink, clear_output
 from ipywidgets import widgets
 from datetime import datetime
 import calendar
+import re
+
+
+# ---------- UTILITY FUNCTIONS ------
+
+def remove_special_chars(s: str) -> str:
+    """
+    Removes any character that is not a letter, a number, or a comma from the input string.
+
+    Parameters:
+    :param s: A string from which special characters, excluding commas, will be removed.
+
+    Returns:
+    :return str: A string where all characters that are not letters, numbers, or commas have been removed.
+    """
+    # This pattern matches any character that is NOT a letter, number, or a comma
+    pattern = r'[^a-zA-Z0-9,]'
+
+    # Substitute all matches with an empty string
+    cleaned_str = re.sub(pattern, '', s)
+
+    return cleaned_str
 
 
 # -------------- CELL 2 --------------
@@ -252,7 +274,7 @@ def setup_widgets(unit_values: dict, value):
     button.on_click(on_button_clicked_save)
 
 
-node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
+node_list = {'NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
              'NODE12', 'NODE13', 'NODE14', 'NODE15', 'NODE16', 'NODE17', 'NODE18', 'NODE19', 'NODE20', 'NODE21',
              'NODE22', 'NODE23', 'NODE24', 'NODE25', 'NODE26', 'NODE27', 'NODE28', 'NODE29', 'NODE30', 'NODE31',
              'NODE32', 'NODE33', 'NODE34', 'NODE35', 'NODE36', 'NODE37', 'NODE38', 'NODE39', 'NODE40', 'NODE41',
@@ -357,7 +379,7 @@ node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NOD
              'NODE947', 'NODE948', 'NODE949', 'NODE950', 'NODE951', 'NODE952', 'NODE953', 'NODE954', 'NODE955',
              'NODE325', 'NODE129', 'NODE956', 'NODE957', 'NODE958', 'NODE959', 'NODE91', 'NODE104', 'NODE129',
              'NODE184', 'NODE185', 'NODE186', 'NODE191', 'NODE192', 'NODE193', 'NODE202', 'NODE203', 'NODE204',
-             'NODE205', 'NODE206', 'NODE207', 'NODE325']
+             'NODE205', 'NODE206', 'NODE207', 'NODE325'}
 
 
 # -------------- CELL 6 --------------
@@ -370,16 +392,70 @@ def get_timeseries_by_values_and_unit(units: str, low_value, high_value) -> pd.D
     pass
 
 
-def get_timeseries_by_hosts(hosts: str) -> pd.DataFrame:
-    pass
+def get_timeseries_by_hosts(hosts: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filters the incoming DataFrame to only include rows where the value in the 'Host' column matches one of the hosts.
+
+    Parameters:
+    :param hosts: A string of host names separated by commas. Special characters will be removed and the string will be
+    converted to upper case.
+    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'Host'.
+
+    Returns:
+    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'Host' value matches one of the host names.
+    """
+    hosts = remove_special_chars(hosts)
+    hosts = hosts.upper()
+    if not isinstance(hosts, list):
+        hosts = hosts.replace(" ", "").split(",")
+
+    # This is using the isin function which checks each value in the 'Host' column to see if it's in the hosts list
+    return incoming_dataframe[incoming_dataframe['Host'].isin(hosts)]
 
 
-def get_timeseries_by_job_ids(job_ids: str) -> pd.DataFrame:
-    pass
+def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filters the incoming DataFrame to only include rows where the value in the 'Job Id' column matches one of the
+    job ids.
+
+    Parameters:
+    :param job_ids: A string of job ids separated by commas. Special characters will be removed and the string will be
+    converted to upper case.
+    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'Job Id'.
+
+    Returns:
+    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'Job Id' value matches one of the job ids.
+    """
+    job_ids = remove_special_chars(job_ids)
+    job_ids = job_ids.upper()
+
+    if not isinstance(job_ids, list):
+        job_ids = job_ids.replace(" ", "").split(",")
+
+    # This is using the isin function which checks each value in the 'Job Id' column to see if it's in the job_ids list
+    return incoming_dataframe[incoming_dataframe['Job Id'].isin(job_ids)]
 
 
-def get_account_logs_by_job_ids(job_ids: str) -> pd.DataFrame:
-    pass
+def get_account_logs_by_job_ids(time_series: pd.DataFrame, starting_time, path) -> pd.DataFrame:
+    """
+    Fetches the job logs from the specified accounting log file and filters it to only include rows whose
+    'Job Id' matches with any of the 'Job Id' from the input time series DataFrame.
+
+    Parameters:
+    :param time_series: A pandas DataFrame that includes a column labeled 'Job Id'.
+    :param starting_time: A string representing the starting time. It is used to extract the month and year.
+    :param path: The path to the directory where the job accounting log file is located.
+
+    Returns:
+    :return pd.DataFrame: A DataFrame of the account log, filtered to only include rows whose 'Job Id'
+                          matches with any 'Job Id' from the input time series DataFrame.
+    """
+    jobs = time_series['Job Id'].to_list()
+
+    month, year = extract_month_year(starting_time)
+    account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
+
+    return account_log[account_log['Job Id'].isin(jobs)]
 
 
 def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
