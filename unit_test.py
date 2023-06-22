@@ -4,11 +4,29 @@ import unittest
 from unittest.mock import patch, Mock
 import pandas as pd
 from IPython.display import FileLink
+from pandas.testing import assert_frame_equal
 
 
 class NotebookFunctionsUnitTests(unittest.TestCase):
     def setUp(self) -> None:
-        pass
+        self.data = pd.DataFrame({
+            'Host': ['NODE83', 'NODE86', 'NODE85', 'NODE100'],
+            'Data': [10, 20, 30, 40]
+        })
+
+        self.job_data = pd.DataFrame({
+            'Job Id': ['JOB1', 'JOB2', 'JOB3', 'JOB4'],
+            'Data': [10, 20, 30, 40]
+        })
+
+        self.time_series = pd.DataFrame({
+            'Job Id': ['JOB1', 'JOB2', 'JOB3']
+        })
+
+        self.account_log = pd.DataFrame({
+            'Job Id': ['JOB1', 'JOB2', 'JOB3', 'JOB4', 'JOB5'],
+            'Data': [10, 20, 30, 40, 50]
+        })
 
     def tearDown(self) -> None:
         pass
@@ -90,6 +108,57 @@ class NotebookFunctionsUnitTests(unittest.TestCase):
 
         # Assert
         self.assertIsInstance(result, FileLink)
+
+    def test_happy_path_s(self):
+        input_str = "This is a test, 123."
+        expected_output = "Thisisatest,123"
+        self.assertEqual(nbf.remove_special_chars(input_str), expected_output)
+
+    def test_empty_input(self):
+        input_str = ""
+        expected_output = ""
+        self.assertEqual(nbf.remove_special_chars(input_str), expected_output)
+
+    def test_special_characters_only(self):
+        input_str = "!@#$%^&*()"
+        expected_output = ""
+        self.assertEqual(nbf.remove_special_chars(input_str), expected_output)
+
+    def test_single_host(self):
+        hosts = 'NODE83'
+        expected_result = pd.DataFrame({
+            'Host': ['NODE83'],
+            'Data': [10]
+        })
+        result = nbf.get_timeseries_by_hosts(hosts, self.data)
+        assert_frame_equal(result, expected_result)
+
+    def test_multiple_hosts(self):
+        hosts = 'NODE83,NODE86'
+        expected_result = pd.DataFrame({
+            'Host': ['NODE83', 'NODE86'],
+            'Data': [10, 20]
+        })
+        result = nbf.get_timeseries_by_hosts(hosts, self.data)
+        assert_frame_equal(result, expected_result)
+
+    def test_single_job_id(self):
+        job_ids = 'JOB1'
+        expected_result = pd.DataFrame({
+            'Job Id': ['JOB1'],
+            'Data': [10]
+        })
+        result = nbf.get_timeseries_by_job_ids(job_ids, self.job_data)
+        assert_frame_equal(result, expected_result)
+
+    def test_multiple_job_ids(self):
+        job_ids = 'JOB1,JOB2'
+        expected_result = pd.DataFrame({
+            'Job Id': ['JOB1', 'JOB2'],
+            'Data': [10, 20]
+        })
+        result = nbf.get_timeseries_by_job_ids(job_ids, self.job_data)
+        assert_frame_equal(result, expected_result)
 
 
 if __name__ == '__main__':
