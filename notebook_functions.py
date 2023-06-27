@@ -127,7 +127,7 @@ def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_wi
     return valid
 
 
-def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
+def handle_missing_metrics(starting_time, ending_time) -> pd.DataFrame:
     """
     Loads a CSV file that contains a timestamped time series of job metrics and filters it based on
     the given starting and ending timestamps. Rows with missing data in the time series are then removed.
@@ -140,8 +140,8 @@ def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
     """
     month, year = extract_month_year(starting_time)
 
-    # get the required DataFrame
-    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+    # get the required DataFrame from DB
+    time_series = ""
 
     # Convert the 'Timestamp' to datetime
     time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
@@ -153,7 +153,7 @@ def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
     return time_series.dropna(inplace=True)
 
 
-def add_interval_column(starting_time: str, ending_time: str, path: str, df=None) -> pd.DataFrame:
+def add_interval_column(starting_time: str, ending_time: str, df=None) -> pd.DataFrame:
     """
     This function reads two CSV files from a specified path that contain job timestamp metrics and job accounting
     information respectively. It then merges the dataframes on the 'Job Id' column, and processes them to add an
@@ -179,8 +179,8 @@ def add_interval_column(starting_time: str, ending_time: str, path: str, df=None
 
     # get the required DataFrames
     if df is None:
-        # Read in csv
-        time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
+        # TODO: Read in data from DB
+        time_series = ""
 
         # Convert the 'Timestamp' and 'End Time' columns to datetime
         time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
@@ -191,7 +191,8 @@ def add_interval_column(starting_time: str, ending_time: str, path: str, df=None
     else:
         time_series = df
 
-    account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
+    # TODO: get account log from DB
+    account_log = ""
 
     # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
