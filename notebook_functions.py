@@ -7,6 +7,7 @@ from ipywidgets import widgets
 from datetime import datetime
 import calendar
 import re
+import psycopg2
 
 
 # ---------- UTILITY FUNCTIONS ------
@@ -44,15 +45,27 @@ def extract_month_year(date_string: str) -> tuple:
     return month, year
 
 
-# -------------- CELL 2 --------------
-def get_data_files_directory(path) -> str:
+# -------------- CELL 3 --------------
+def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     """
-    This function should produce a folder path to the data files.
+    This function should read the data from the database.
 
-    :param path:
-    :return:
+    :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
+    :return: A pandas DataFrame containing the data.
     """
-    return path
+    return pd.DataFrame()
+
+
+def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
+    """
+    This function should get the account data from the database.
+
+    :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
+    :return: A pandas DataFrame containing the data.
+    """
+    return pd.DataFrame()
 
 
 # -------------- CELL 4 --------------
@@ -127,73 +140,20 @@ def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_wi
     return valid
 
 
-def handle_missing_metrics(starting_time, ending_time) -> pd.DataFrame:
+def handle_missing_metrics(time_series: pd.DataFrame) -> pd.DataFrame:
     """
-    Loads a CSV file that contains a timestamped time series of job metrics and filters it based on
-    the given starting and ending timestamps. Rows with missing data in the time series are then removed.
 
-    :param starting_time: The beginning of the time frame to consider.
-    :param ending_time: The end of the time frame to consider.
-    :param path: The directory path where the CSV file is located.
-    :return: A DataFrame with the time series data from the specified time frame, with any rows containing missing data
-    removed.
     """
-    month, year = extract_month_year(starting_time)
+    result = time_series.dropna()
 
-    # get the required DataFrame from DB
-    time_series = ""
-
-    # Convert the 'Timestamp' to datetime
-    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
-
-    # Remove the rows that are not within the given timeframe
-    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
-    time_series = time_series.loc[mask]
-
-    return time_series.dropna(inplace=True)
+    return result
 
 
-def add_interval_column(starting_time: str, ending_time: str, df=None) -> pd.DataFrame:
+def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
-    This function reads two CSV files from a specified path that contain job timestamp metrics and job accounting
-    information respectively. It then merges the dataframes on the 'Job Id' column, and processes them to add an
-    'Interval' column.
 
-    The 'Interval' column represents the time difference between each row and the next for each group of 'Job Id',
-    'Host', 'Event'. If the 'Interval' is NaN, the 'End Time' is subtracted from the 'Timestamp'. If it's not the
-    same sample, the minimum value between the current 'Interval' value and the difference between the given ending
-    time and 'Timestamp' is used.
-
-    Parameters:
-    :param df: Optional argument only provided if the handle_missing_metrics ran before this function.
-    :param starting_time: The starting datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
-    :param ending_time: The ending datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
-    :param path: The directory path where the CSV files are located.
-
-    Returns:
-    :return pd.DataFrame: The processed DataFrame with an added 'Interval' column.
     """
-    month, year = extract_month_year(starting_time)
-
-    time_series = pd.DataFrame
-
-    # get the required DataFrames
-    if df is None:
-        # TODO: Read in data from DB
-        time_series = ""
-
-        # Convert the 'Timestamp' and 'End Time' columns to datetime
-        time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
-
-        # Remove the rows that are not within the given timeframe
-        mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
-        time_series = time_series.loc[mask]
-    else:
-        time_series = df
-
-    # TODO: get account log from DB
-    account_log = ""
-
+    # TODO: is this needed still?
     # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
 
@@ -389,7 +349,7 @@ def get_timeseries_by_timestamp(begin_time: str, end_time: str, return_columns: 
     pass
 
 
-def get_timeseries_by_values_and_unit(units: str, low_value, high_value) -> pd.DataFrame:
+def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.DataFrame:
     pass
 
 
@@ -437,24 +397,11 @@ def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) ->
     return incoming_dataframe[incoming_dataframe['Job Id'].isin(job_ids)]
 
 
-def get_account_logs_by_job_ids(time_series: pd.DataFrame, starting_time, path) -> pd.DataFrame:
+def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
     """
-    Fetches the job logs from the specified accounting log file and filters it to only include rows whose
-    'Job Id' matches with any of the 'Job Id' from the input time series DataFrame.
 
-    Parameters:
-    :param time_series: A pandas DataFrame that includes a column labeled 'Job Id'.
-    :param starting_time: A string representing the starting time. It is used to extract the month and year.
-    :param path: The path to the directory where the job accounting log file is located.
-
-    Returns:
-    :return pd.DataFrame: A DataFrame of the account log, filtered to only include rows whose 'Job Id'
-                          matches with any 'Job Id' from the input time series DataFrame.
     """
     jobs = time_series['Job Id'].to_list()
-
-    month, year = extract_month_year(starting_time)
-    account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
 
     return account_log[account_log['Job Id'].isin(jobs)]
 
