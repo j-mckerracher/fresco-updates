@@ -224,28 +224,42 @@ def setup_widgets(unit_values: dict, value):
     Returns:
     None. This function doesn't return anything; it creates and displays interactive widgets in a Jupyter notebook.
     """
-    print("********************************")
-    print(f"Enter the low value for {value}")
-    low_value = widgets.FloatText(
-        value=0.1,
-        description=f'{value} Low Value:',
-        disabled=False
+    value_range = widgets.FloatRangeSlider(
+    value=[0.01,99.99],
+    min=0,
+    max=100,
+    step=0.01,
+    orientation='horizontal',
+    readout=False,
+    description=f'{value} Range:',
+    disabled=False,
+    style={'description_width': 'initial'},
+    layout=widgets.Layout(width="99%")
     )
-    display(low_value)
+    range_low_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
+    range_high_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
 
-    print(f"Enter the high value for {value}")
-    high_value = widgets.FloatText(
-        value=99.9,
-        description=f'{value} High Value:',
-        disabled=False
+    labels = widgets.HBox(
+        [
+            widgets.Box([widgets.Label("Low Value:"), range_low_text], layout=widgets.Layout(justify_content="space-around", width="30%") ),
+            widgets.Box( [widgets.Label("High Value:"), range_high_text], layout=widgets.Layout(justify_content="space-between", width="30%"))
+        ],
+        layout=widgets.Layout(justify_content="space-between"))
+
+    container = widgets.VBox(
+        [value_range, labels],
+        layout=widgets.Layout(width="50%")
     )
-    display(high_value)
-
+    ipywidgets.dlink((value_range, 'value'), (range_low_text, 'value'), transform=lambda x: x[0])
+    ipywidgets.dlink((range_low_text, 'value') ,(value_range, 'value'), transform=lambda x: (x,value_range.value[1]))
+    ipywidgets.dlink((value_range, 'value'), (range_high_text, 'value'), transform=lambda x: x[1])
+    ipywidgets.dlink((range_high_text, 'value') ,(value_range, 'value'), transform=lambda x: (value_range.value[0],x))
+    display(container)
     button = widgets.Button(description="Save Values")
     display(button)
 
     def on_button_clicked_save(b):
-        unit_values[value] = (low_value.value, high_value.value)
+        unit_values[value] = value_range
         b.description = "Values Saved!"
         b.button_style = 'success'  # The button turns green when clicked
 
