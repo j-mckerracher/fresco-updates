@@ -54,7 +54,11 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    return pd.DataFrame()
+    conn_string = os.environ.get("CONN_STRING")
+    with psycopg2.connect(conn_string)as conn:
+        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+        df = sqlio.read_sql_query(sql, conn)
+        return df
 
 
 def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
@@ -65,7 +69,20 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    return pd.DataFrame()
+    conn_string = os.environ.get("CONN_STRING")
+    col_mapping = {
+        'Job Id': 'jid',
+        'Hosts': 'host',
+        'Events': 'event',
+        'Units': 'unit',
+        'Values': 'value',
+        'Timestamps': 'time'
+    }
+    query_cols = [col_mapping[x] for x in return_columns]
+    with psycopg2.connect(conn_string)as conn:
+        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+        df = sqlio.read_sql_query(sql, conn)
+        return df
 
 
 # -------------- CELL 4 --------------
