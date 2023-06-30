@@ -54,6 +54,7 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
+    # TODO: implement this function
     return pd.DataFrame()
 
 
@@ -65,6 +66,7 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
+    # TODO: implement this function
     return pd.DataFrame()
 
 
@@ -140,20 +142,22 @@ def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_wi
     return valid
 
 
-def handle_missing_metrics(time_series: pd.DataFrame) -> pd.DataFrame:
-    """
-
-    """
-    result = time_series.dropna()
-
-    return result
-
-
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
+    This function adds an interval column to a merged DataFrame consisting of time series and account log data.
+    The interval column represents the difference in time (in seconds) between consecutive rows of the same sample.
+    In the case of the last row of a sample, the interval is the difference between the ending time and the timestamp
+    of the row. In cases where there's a different sample in the next row, the interval is the minimum between the
+    calculated interval and the difference between the ending time and the timestamp of the current row.
 
+    :param ending_time: The end time of the data in the format of '%Y-%m-%d %H:%M:%S'.
+    :param time_series: The DataFrame containing time series data.
+    :param account_log: The DataFrame containing account log data, which is expected to have a column 'End Time'
+                        and 'Job Id'.
+
+    :return: The merged DataFrame containing the columns 'Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp',
+             and 'Interval'. The 'Interval' column is computed as described above.
     """
-    # TODO: is this needed still?
     # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
 
@@ -399,7 +403,14 @@ def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) ->
 
 def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
     """
+    This function filters an account log DataFrame to include only the rows where the 'Job Id' is present in the
+    'Job Id' column of a given time series DataFrame.
 
+    :param time_series: The DataFrame containing time series data, which is expected to have a column 'Job Id'.
+    :param account_log: The DataFrame containing account log data, which is expected to have a column 'Job Id'.
+
+    :return: A new DataFrame derived from the account_log DataFrame, containing only the rows where 'Job Id' is present
+         in the time_series DataFrame's 'Job Id' column.
     """
     jobs = time_series['Job Id'].to_list()
 
@@ -407,8 +418,19 @@ def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataF
 
 
 def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
+    """
+    This function creates a download link for a given DataFrame.
+
+    :param df: The DataFrame to be downloaded.
+    :param title: The title of the link.
+    :param filename: The name of the file to be downloaded.
+
+    :return: A FileLink object.
+    """
+    # Convert the DataFrame to a CSV file
     df.to_csv(filename, index=False)
     return FileLink(filename)
+
 
 
 # -------------- CELL 7 --------------
