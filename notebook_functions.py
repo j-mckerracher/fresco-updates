@@ -86,15 +86,6 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
 
 # -------------- CELL 4 --------------
 
-def handle_missing_metrics(time_series: pd.DataFrame) -> pd.DataFrame:
-    """
-
-    """
-    result = time_series.dropna()
-
-    return result
-
-
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
 
