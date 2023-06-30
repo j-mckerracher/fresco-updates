@@ -13,3 +13,4 @@ out/
 
 # Other
 *.csv
+.ipynb_checkpoints/
