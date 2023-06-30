@@ -2,10 +2,9 @@ import os
 import ipywidgets
 import numpy as np
 import pandas as pd
-from IPython.display import display, FileLink, clear_output
+from IPython.display import display, FileLink
 from ipywidgets import widgets
 from datetime import datetime
-import calendar
 import re
 import psycopg2
 
@@ -86,76 +85,6 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
 
 
 # -------------- CELL 4 --------------
-def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_widget: ipywidgets.Widget,
-                   save_b: ipywidgets.Button, unit_widget=None) -> bool:
-    """
-    Validates that the given start and end times are in the correct format and that the start time is earlier than the
-    end time.
-
-    In case of invalid time entries, the function re-displays the corresponding input widgets for user correction.
-
-    :param start: The start time in the format of '%Y-%m-%d %H:%M:%S'.
-    :param end: The end time in the format of '%Y-%m-%d %H:%M:%S'.
-    :param start_widget: The widget to input the start time.
-    :param end_widget: The widget to input the end time.
-    :param save_b: The button widget to save the times.
-    :param unit_widget: (ipywidgets.Widget) An optional widget to display. Defaults to None.
-
-    :return bool: True if the times are valid, False otherwise.
-    """
-    clear_output(wait=True)
-    format_str = '%Y-%m-%d %H:%M:%S'  # The format
-    valid = True
-    valid_t = "2023-06-17 15:30:00"
-
-    try:
-        start_time = datetime.strptime(start, format_str)
-        end_time = datetime.strptime(end, format_str)
-
-        if start_time >= end_time:
-            print("Please re-enter the times. The start time must be less than the end time.")
-            if unit_widget is None:
-                display(start_widget, end_widget, save_b)
-            else:
-                display(start_widget, end_widget, save_b, unit_widget)
-            return False
-
-    except ValueError:
-        print(f"Please re-enter the times. Both times must be in the correct format. A valid example is {valid_t}")
-        if unit_widget is None:
-            display(start_widget, end_widget, save_b)
-        else:
-            display(start_widget, end_widget, save_b, unit_widget)
-        return False
-
-    for time_str in [(start, "start"), (end, "end")]:
-        time, label = time_str
-        # Try to parse time
-        try:
-            parsed_time = datetime.strptime(time, format_str)
-            year = parsed_time.year
-            month = parsed_time.month
-            day = parsed_time.day
-
-            # Check if day is valid for the month
-            if day > calendar.monthrange(year, month)[1]:
-                print(
-                    f"Please re-enter time. {label}: '{time}' has an invalid day for the month. A valid example is {valid_t}")
-                valid = False
-                if unit_widget is None:
-                    display(start_widget, end_widget, save_b)
-                else:
-                    display(start_widget, end_widget, save_b, unit_widget)
-        except ValueError:
-            print(f"Please re-enter time. {label}: '{time}' is not in the correct format. A valid example is {valid_t}")
-            valid = False
-            if unit_widget is None:
-                display(start_widget, end_widget, save_b)
-            else:
-                display(start_widget, end_widget, save_b, unit_widget)
-
-    return valid
-
 
 def handle_missing_metrics(time_series: pd.DataFrame) -> pd.DataFrame:
     """
