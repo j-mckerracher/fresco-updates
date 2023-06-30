@@ -54,8 +54,11 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    # TODO: implement this function
-    return pd.DataFrame()
+    conn_string = os.environ.get("CONN_STRING")
+    with psycopg2.connect(conn_string)as conn:
+        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+        df = sqlio.read_sql_query(sql, conn)
+        return df
 
 
 def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
@@ -66,8 +69,20 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    # TODO: implement this function
-    return pd.DataFrame()
+    conn_string = os.environ.get("CONN_STRING")
+    col_mapping = {
+        'Job Id': 'jid',
+        'Hosts': 'host',
+        'Events': 'event',
+        'Units': 'unit',
+        'Values': 'value',
+        'Timestamps': 'time'
+    }
+    query_cols = [col_mapping[x] for x in return_columns]
+    with psycopg2.connect(conn_string)as conn:
+        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+        df = sqlio.read_sql_query(sql, conn)
+        return df
 
 
 # -------------- CELL 4 --------------
@@ -142,22 +157,20 @@ def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_wi
     return valid
 
 
+def handle_missing_metrics(time_series: pd.DataFrame) -> pd.DataFrame:
+    """
+
+    """
+    result = time_series.dropna()
+
+    return result
+
+
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
-    This function adds an interval column to a merged DataFrame consisting of time series and account log data.
-    The interval column represents the difference in time (in seconds) between consecutive rows of the same sample.
-    In the case of the last row of a sample, the interval is the difference between the ending time and the timestamp
-    of the row. In cases where there's a different sample in the next row, the interval is the minimum between the
-    calculated interval and the difference between the ending time and the timestamp of the current row.
 
-    :param ending_time: The end time of the data in the format of '%Y-%m-%d %H:%M:%S'.
-    :param time_series: The DataFrame containing time series data.
-    :param account_log: The DataFrame containing account log data, which is expected to have a column 'End Time'
-                        and 'Job Id'.
-
-    :return: The merged DataFrame containing the columns 'Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp',
-             and 'Interval'. The 'Interval' column is computed as described above.
     """
+    # TODO: is this needed still?
     # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
 
@@ -211,28 +224,42 @@ def setup_widgets(unit_values: dict, value):
     Returns:
     None. This function doesn't return anything; it creates and displays interactive widgets in a Jupyter notebook.
     """
-    print("********************************")
-    print(f"Enter the low value for {value}")
-    low_value = widgets.FloatText(
-        value=0.1,
-        description=f'{value} Low Value:',
-        disabled=False
+    value_range = widgets.FloatRangeSlider(
+    value=[0.01,99.99],
+    min=0,
+    max=100,
+    step=0.01,
+    orientation='horizontal',
+    readout=False,
+    description=f'{value} Range:',
+    disabled=False,
+    style={'description_width': 'initial'},
+    layout=widgets.Layout(width="99%")
     )
-    display(low_value)
+    range_low_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
+    range_high_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
 
-    print(f"Enter the high value for {value}")
-    high_value = widgets.FloatText(
-        value=99.9,
-        description=f'{value} High Value:',
-        disabled=False
+    labels = widgets.HBox(
+        [
+            widgets.Box([widgets.Label("Low Value:"), range_low_text], layout=widgets.Layout(justify_content="space-around", width="30%") ),
+            widgets.Box( [widgets.Label("High Value:"), range_high_text], layout=widgets.Layout(justify_content="space-between", width="30%"))
+        ],
+        layout=widgets.Layout(justify_content="space-between"))
+
+    container = widgets.VBox(
+        [value_range, labels],
+        layout=widgets.Layout(width="50%")
     )
-    display(high_value)
-
+    ipywidgets.dlink((value_range, 'value'), (range_low_text, 'value'), transform=lambda x: x[0])
+    ipywidgets.dlink((range_low_text, 'value') ,(value_range, 'value'), transform=lambda x: (x,value_range.value[1]))
+    ipywidgets.dlink((value_range, 'value'), (range_high_text, 'value'), transform=lambda x: x[1])
+    ipywidgets.dlink((range_high_text, 'value') ,(value_range, 'value'), transform=lambda x: (value_range.value[0],x))
+    display(container)
     button = widgets.Button(description="Save Values")
     display(button)
 
     def on_button_clicked_save(b):
-        unit_values[value] = (low_value.value, high_value.value)
+        unit_values[value] = value_range
         b.description = "Values Saved!"
         b.button_style = 'success'  # The button turns green when clicked
 
@@ -403,14 +430,7 @@ def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) ->
 
 def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
     """
-    This function filters an account log DataFrame to include only the rows where the 'Job Id' is present in the
-    'Job Id' column of a given time series DataFrame.
 
-    :param time_series: The DataFrame containing time series data, which is expected to have a column 'Job Id'.
-    :param account_log: The DataFrame containing account log data, which is expected to have a column 'Job Id'.
-
-    :return: A new DataFrame derived from the account_log DataFrame, containing only the rows where 'Job Id' is present
-         in the time_series DataFrame's 'Job Id' column.
     """
     jobs = time_series['Job Id'].to_list()
 
@@ -418,19 +438,8 @@ def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataF
 
 
 def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
-    """
-    This function creates a download link for a given DataFrame.
-
-    :param df: The DataFrame to be downloaded.
-    :param title: The title of the link.
-    :param filename: The name of the file to be downloaded.
-
-    :return: A FileLink object.
-    """
-    # Convert the DataFrame to a CSV file
     df.to_csv(filename, index=False)
     return FileLink(filename)
-
 
 
 # -------------- CELL 7 --------------
