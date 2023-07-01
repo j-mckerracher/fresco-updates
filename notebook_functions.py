@@ -54,10 +54,10 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :return: A pandas DataFrame containing the data.
     """
     conn_string = os.environ.get("CONN_STRING")
-    with psycopg2.connect(conn_string)as conn:
-        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
-        df = sqlio.read_sql_query(sql, conn)
-        return df
+    # with psycopg2.connect(conn_string)as conn:
+    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+    #     df = sqlio.read_sql_query(sql, conn)
+    #     return df
 
 
 def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
@@ -77,20 +77,37 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
         'Values': 'value',
         'Timestamps': 'time'
     }
-    query_cols = [col_mapping[x] for x in return_columns]
-    with psycopg2.connect(conn_string)as conn:
-        sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
-        df = sqlio.read_sql_query(sql, conn)
-        return df
+    # query_cols = [col_mapping[x] for x in return_columns]
+    # with psycopg2.connect(conn_string)as conn:
+    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+    #     df = sqlio.read_sql_query(sql, conn)
+    #     return df
 
 
 # -------------- CELL 4 --------------
 
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
+    Adds an interval column to a merged DataFrame based on the timestamps of the event series. It also ensures that
+    intervals are correctly calculated across different jobs and hosts. The function assumes that the account_log
+    DataFrame has an 'End Time' column and both account_log and time_series DataFrames have a 'Job Id' column.
 
+    Parameters:
+    :param ending_time: A string representing the ending time to be compared with timestamps in the DataFrame.
+                        The string should be in a format that pandas can convert into a datetime object.
+
+    :param time_series: A pandas DataFrame containing time series data. This DataFrame should at least contain 'Job Id',
+                        'Host', 'Event', and 'Timestamp' columns.
+
+    :param account_log: A pandas DataFrame containing account logs. This DataFrame should at least contain 'Job Id' and
+                        'End Time' columns. 'End Time' will be converted into datetime format within the function.
+
+    Returns:
+    :return: A pandas DataFrame that is the result of merging time_series and account_log DataFrames, dropping
+             duplicates based on 'Job Id', 'Host', 'Event' and adding an 'Interval' column. This DataFrame also
+             contains the columns 'Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp', 'Interval'. The 'Interval'
+             column represents the time difference between consecutive events, considering 'Job Id', 'Host', and 'Event'.
     """
-    # TODO: is this needed still?
     # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
 
