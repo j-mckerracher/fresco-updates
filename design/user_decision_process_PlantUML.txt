@@ -1,35 +1,35 @@
 @startuml
 start
 :Run cell 1;
-:Provide directory path in 'Path' field;
+:Provide time window for host dataset;
 :Run cell 2;
+:Choose data preprocessing options;
 
-if (Data preprocessing needed?) then (yes)
-    :Run cell 3;
-    :Provide start time and end times;
-    :Run cell 4;
-    :Select units for timeseries data;
-    :Run cell 5;
-    :Provide desired options;
-    :Run cell 6;
-    :Provide desired statistic;
-    :Run cell 7;
-    :Provide data visualisation options;
-    :Run cell 8;
-    :View data visualizations;
-    stop
-else (no)
-    :Run cell 4;
-    :Provide start time, end times and select units for timeseries data;
-    :Run cell 5;
-    :Provide desired options;
-    :Run cell 6;
-    :Provide desired statistic;
-    :Run cell 7;
-    :Provide data visualisation options;
-    :Run cell 8;
-    :View data visualizations;
-    stop
-endif
+:Run cell 3;
+:Provide time window for the host dataset and select units for timeseries data;
+:Run cell 4;
+:Provide low and high values for selected units;
+:Provide list of hosts and job IDs;
+:Select columns to be included in the timeseries data;
 
+:Run cell 5;
+:Apply filters based on user input;
+:Choose data download option;
+:Choose statistical calculations to apply to the dataset;
+
+:Run cell 6;
+:Display statistical calculations;
+:Choose options for correlation exploration;
+
+:Run cell 7;
+:Calculate correlations;
+:Display correlation visualizations;
+
+:Run cell 8;
+:Select files to download;
+:Provide download link for selected files;
+
+:Run cell 9;
+:Reserved for future notebook functionalities;
+stop
 @enduml
