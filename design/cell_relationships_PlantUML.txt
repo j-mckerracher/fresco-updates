@@ -1,0 +1,46 @@
+@startuml
+start
+
+:Cell 1: Load necessary libraries and modules;
+
+:Cell 2: User inputs time window for host dataset;
+note right
+    - The time window is defined for the host dataset
+end note
+
+:Cell 3: User inputs time window for the data and selects units;
+note right
+    - The time window and units are used for time series data processing
+end note
+
+:Cell 4: User provides values for selected units, list of hosts, job IDs, and return columns;
+note right
+    - These inputs will be used for data filtering and column selection
+end note
+
+:Cell 5: Filtering functions are executed based on user's decisions in the previous cells;
+note right
+    - The filtering functions are based on selected units, host list, job IDs and selected columns
+end note
+
+:Cell 6: User selects statistics to compute and data to download;
+
+:Cell 7: Functions for statistical calculations and correlation computation are executed;
+note right
+    - The functions are executed based on the user's selection
+end note
+
+:Cell 8: Correlation visualizations are displayed;
+note right
+    - The visualizations are based on the correlations computed
+end note
+
+:Cell 9: User selects files to download;
+note right
+    - The selected files are prepared for download
+end note
+
+:Cell 10: The selected files are downloaded;
+
+stop
+@enduml

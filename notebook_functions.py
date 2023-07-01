@@ -2,118 +2,32 @@ import os
 import ipywidgets
 import numpy as np
 import pandas as pd
-from IPython.display import display, FileLink, clear_output
+from IPython.display import display, FileLink
 from ipywidgets import widgets
 from datetime import datetime
-import calendar
+import re
+import psycopg2
 
 
-# -------------- CELL 2 --------------
-def get_data_files_directory(path) -> str:
+# ---------- UTILITY FUNCTIONS ------
+
+def remove_special_chars(s: str) -> str:
     """
-    This function should produce a folder path to the data files.
+    Removes any character that is not a letter, a number, or a comma from the input string.
 
-    :param path:
-    :return:
+    Parameters:
+    :param s: A string from which special characters, excluding commas, will be removed.
+
+    Returns:
+    :return str: A string where all characters that are not letters, numbers, or commas have been removed.
     """
-    return path
+    # This pattern matches any character that is NOT a letter, number, or a comma
+    pattern = r'[^a-zA-Z0-9,]'
 
+    # Substitute all matches with an empty string
+    cleaned_str = re.sub(pattern, '', s)
 
-# -------------- CELL 4 --------------
-def validate_times(start: str, end: str, start_widget: ipywidgets.Widget, end_widget: ipywidgets.Widget, save_b: ipywidgets.Button, unit_widget=None) -> bool:
-    """
-    Validates that the given start and end times are in the correct format and that the start time is earlier than the
-    end time.
-
-    In case of invalid time entries, the function re-displays the corresponding input widgets for user correction.
-
-    :param start: The start time in the format of '%Y-%m-%d %H:%M:%S'.
-    :param end: The end time in the format of '%Y-%m-%d %H:%M:%S'.
-    :param start_widget: The widget to input the start time.
-    :param end_widget: The widget to input the end time.
-    :param save_b: The button widget to save the times.
-    :param unit_widget: (ipywidgets.Widget) An optional widget to display. Defaults to None.
-
-    :return bool: True if the times are valid, False otherwise.
-    """
-    clear_output(wait=True)
-    format_str = '%Y-%m-%d %H:%M:%S'  # The format
-    valid = True
-    valid_t = "2023-06-17 15:30:00"
-
-    try:
-        start_time = datetime.strptime(start, format_str)
-        end_time = datetime.strptime(end, format_str)
-
-        if start_time >= end_time:
-            print("Please re-enter the times. The start time must be less than the end time.")
-            if unit_widget is None:
-                display(start_widget, end_widget, save_b)
-            else:
-                display(start_widget, end_widget, save_b, unit_widget)
-            return False
-
-    except ValueError:
-        print(f"Please re-enter the times. Both times must be in the correct format. A valid example is {valid_t}")
-        if unit_widget is None:
-            display(start_widget, end_widget, save_b)
-        else:
-            display(start_widget, end_widget, save_b, unit_widget)
-        return False
-
-    for time_str in [(start, "start"), (end, "end")]:
-        time, label = time_str
-        # Try to parse time
-        try:
-            parsed_time = datetime.strptime(time, format_str)
-            year = parsed_time.year
-            month = parsed_time.month
-            day = parsed_time.day
-
-            # Check if day is valid for the month
-            if day > calendar.monthrange(year, month)[1]:
-                print(
-                    f"Please re-enter time. {label}: '{time}' has an invalid day for the month. A valid example is {valid_t}")
-                valid = False
-                if unit_widget is None:
-                    display(start_widget, end_widget, save_b)
-                else:
-                    display(start_widget, end_widget, save_b, unit_widget)
-        except ValueError:
-            print(f"Please re-enter time. {label}: '{time}' is not in the correct format. A valid example is {valid_t}")
-            valid = False
-            if unit_widget is None:
-                display(start_widget, end_widget, save_b)
-            else:
-                display(start_widget, end_widget, save_b, unit_widget)
-
-    return valid
-
-
-def handle_missing_metrics(starting_time, ending_time, path) -> pd.DataFrame:
-    """
-    Loads a CSV file that contains a timestamped time series of job metrics and filters it based on
-    the given starting and ending timestamps. Rows with missing data in the time series are then removed.
-
-    :param starting_time: The beginning of the time frame to consider.
-    :param ending_time: The end of the time frame to consider.
-    :param path: The directory path where the CSV file is located.
-    :return: A DataFrame with the time series data from the specified time frame, with any rows containing missing data
-    removed.
-    """
-    month, year = extract_month_year(starting_time)
-
-    # get the required DataFrame
-    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
-
-    # Convert the 'Timestamp' to datetime
-    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
-
-    # Remove the rows that are not within the given timeframe
-    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
-    time_series = time_series.loc[mask]
-
-    return time_series.dropna(inplace=True)
+    return cleaned_str
 
 
 def extract_month_year(date_string: str) -> tuple:
@@ -130,38 +44,72 @@ def extract_month_year(date_string: str) -> tuple:
     return month, year
 
 
-def add_interval_column(starting_time: str, ending_time: str, path: str) -> pd.DataFrame:
+# -------------- CELL 3 --------------
+def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     """
-    This function reads two CSV files from a specified path that contain job timestamp metrics and job accounting
-    information respectively. It then merges the dataframes on the 'Job Id' column, and processes them to add an
-    'Interval' column.
+    This function should read the data from the database.
 
-    The 'Interval' column represents the time difference between each row and the next for each group of 'Job Id',
-    'Host', 'Event'. If the 'Interval' is NaN, the 'End Time' is subtracted from the 'Timestamp'. If it's not the
-    same sample, the minimum value between the current 'Interval' value and the difference between the given ending
-    time and 'Timestamp' is used.
+    :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
+    :return: A pandas DataFrame containing the data.
+    """
+    conn_string = os.environ.get("CONN_STRING")
+    # with psycopg2.connect(conn_string)as conn:
+    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+    #     df = sqlio.read_sql_query(sql, conn)
+    #     return df
+
+
+def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
+    """
+    This function should get the account data from the database.
+
+    :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
+    :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
+    :return: A pandas DataFrame containing the data.
+    """
+    conn_string = os.environ.get("CONN_STRING")
+    col_mapping = {
+        'Job Id': 'jid',
+        'Hosts': 'host',
+        'Events': 'event',
+        'Units': 'unit',
+        'Values': 'value',
+        'Timestamps': 'time'
+    }
+    # query_cols = [col_mapping[x] for x in return_columns]
+    # with psycopg2.connect(conn_string)as conn:
+    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
+    #     df = sqlio.read_sql_query(sql, conn)
+    #     return df
+
+
+# -------------- CELL 4 --------------
+
+def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
+    """
+    Adds an interval column to a merged DataFrame based on the timestamps of the event series. It also ensures that
+    intervals are correctly calculated across different jobs and hosts. The function assumes that the account_log
+    DataFrame has an 'End Time' column and both account_log and time_series DataFrames have a 'Job Id' column.
 
     Parameters:
-    :param starting_time: The starting datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
-    :param ending_time: The ending datetime string in the format "YYYY-MM-DD HH:MM:SS" for selecting data.
-    :param path: The directory path where the CSV files are located.
+    :param ending_time: A string representing the ending time to be compared with timestamps in the DataFrame.
+                        The string should be in a format that pandas can convert into a datetime object.
+
+    :param time_series: A pandas DataFrame containing time series data. This DataFrame should at least contain 'Job Id',
+                        'Host', 'Event', and 'Timestamp' columns.
+
+    :param account_log: A pandas DataFrame containing account logs. This DataFrame should at least contain 'Job Id' and
+                        'End Time' columns. 'End Time' will be converted into datetime format within the function.
 
     Returns:
-    :return pd.DataFrame: The processed DataFrame with an added 'Interval' column.
+    :return: A pandas DataFrame that is the result of merging time_series and account_log DataFrames, dropping
+             duplicates based on 'Job Id', 'Host', 'Event' and adding an 'Interval' column. This DataFrame also
+             contains the columns 'Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp', 'Interval'. The 'Interval'
+             column represents the time difference between consecutive events, considering 'Job Id', 'Host', and 'Event'.
     """
-    month, year = extract_month_year(starting_time)
-
-    # get the required DataFrames
-    time_series = pd.read_csv(os.path.join(path, f"job_ts_metrics_{month.lower()}{year}_anon.csv"))
-    account_log = pd.read_csv(os.path.join(path, f'job_accounting_{month.lower()}{year}_anon.csv'))
-
-    # Convert the 'Timestamp' and 'End Time' columns to datetime
-    time_series['Timestamp'] = pd.to_datetime(time_series['Timestamp'])
+    # Convert the 'End Time' column to datetime
     account_log['End Time'] = pd.to_datetime(account_log['End Time'])
-
-    # Remove the rows that are not within the given timeframe
-    mask = (time_series['Timestamp'] > starting_time) & (time_series['Timestamp'] <= ending_time)
-    time_series = time_series.loc[mask]
 
     # Merge both dataframes on the 'Job Id' column
     merged_df = pd.merge(time_series, account_log, on='Job Id', how='inner')
@@ -213,35 +161,49 @@ def setup_widgets(unit_values: dict, value):
     Returns:
     None. This function doesn't return anything; it creates and displays interactive widgets in a Jupyter notebook.
     """
-    print("********************************")
-    print(f"Enter the low value for {value}")
-    low_value = widgets.FloatText(
-        value=0.1,
-        description=f'{value} Low Value:',
-        disabled=False
+    value_range = widgets.FloatRangeSlider(
+    value=[0.01,99.99],
+    min=0,
+    max=100,
+    step=0.01,
+    orientation='horizontal',
+    readout=False,
+    description=f'{value} Range:',
+    disabled=False,
+    style={'description_width': 'initial'},
+    layout=widgets.Layout(width="99%")
     )
-    display(low_value)
+    range_low_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
+    range_high_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
 
-    print(f"Enter the high value for {value}")
-    high_value = widgets.FloatText(
-        value=99.9,
-        description=f'{value} High Value:',
-        disabled=False
+    labels = widgets.HBox(
+        [
+            widgets.Box([widgets.Label("Low Value:"), range_low_text], layout=widgets.Layout(justify_content="space-around", width="30%") ),
+            widgets.Box( [widgets.Label("High Value:"), range_high_text], layout=widgets.Layout(justify_content="space-between", width="30%"))
+        ],
+        layout=widgets.Layout(justify_content="space-between"))
+
+    container = widgets.VBox(
+        [value_range, labels],
+        layout=widgets.Layout(width="50%")
     )
-    display(high_value)
-
+    ipywidgets.dlink((value_range, 'value'), (range_low_text, 'value'), transform=lambda x: x[0])
+    ipywidgets.dlink((range_low_text, 'value') ,(value_range, 'value'), transform=lambda x: (x,value_range.value[1]))
+    ipywidgets.dlink((value_range, 'value'), (range_high_text, 'value'), transform=lambda x: x[1])
+    ipywidgets.dlink((range_high_text, 'value') ,(value_range, 'value'), transform=lambda x: (value_range.value[0],x))
+    display(container)
     button = widgets.Button(description="Save Values")
     display(button)
 
     def on_button_clicked_save(b):
-        unit_values[value] = (low_value.value, high_value.value)
+        unit_values[value] = value_range
         b.description = "Values Saved!"
         b.button_style = 'success'  # The button turns green when clicked
 
     button.on_click(on_button_clicked_save)
 
 
-node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
+node_list = {'NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NODE8', 'NODE9', 'NODE10', 'NODE11',
              'NODE12', 'NODE13', 'NODE14', 'NODE15', 'NODE16', 'NODE17', 'NODE18', 'NODE19', 'NODE20', 'NODE21',
              'NODE22', 'NODE23', 'NODE24', 'NODE25', 'NODE26', 'NODE27', 'NODE28', 'NODE29', 'NODE30', 'NODE31',
              'NODE32', 'NODE33', 'NODE34', 'NODE35', 'NODE36', 'NODE37', 'NODE38', 'NODE39', 'NODE40', 'NODE41',
@@ -346,7 +308,7 @@ node_list = ['NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NOD
              'NODE947', 'NODE948', 'NODE949', 'NODE950', 'NODE951', 'NODE952', 'NODE953', 'NODE954', 'NODE955',
              'NODE325', 'NODE129', 'NODE956', 'NODE957', 'NODE958', 'NODE959', 'NODE91', 'NODE104', 'NODE129',
              'NODE184', 'NODE185', 'NODE186', 'NODE191', 'NODE192', 'NODE193', 'NODE202', 'NODE203', 'NODE204',
-             'NODE205', 'NODE206', 'NODE207', 'NODE325']
+             'NODE205', 'NODE206', 'NODE207', 'NODE325'}
 
 
 # -------------- CELL 6 --------------
@@ -355,20 +317,61 @@ def get_timeseries_by_timestamp(begin_time: str, end_time: str, return_columns: 
     pass
 
 
-def get_timeseries_by_values_and_unit(units: str, low_value, high_value) -> pd.DataFrame:
+def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.DataFrame:
     pass
 
 
-def get_timeseries_by_hosts(hosts: str) -> pd.DataFrame:
-    pass
+def get_timeseries_by_hosts(hosts: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filters the incoming DataFrame to only include rows where the value in the 'Host' column matches one of the hosts.
+
+    Parameters:
+    :param hosts: A string of host names separated by commas. Special characters will be removed and the string will be
+    converted to upper case.
+    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'Host'.
+
+    Returns:
+    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'Host' value matches one of the host names.
+    """
+    hosts = remove_special_chars(hosts)
+    hosts = hosts.upper()
+    if not isinstance(hosts, list):
+        hosts = hosts.replace(" ", "").split(",")
+
+    # This is using the isin function which checks each value in the 'Host' column to see if it's in the hosts list
+    return incoming_dataframe[incoming_dataframe['Host'].isin(hosts)]
 
 
-def get_timeseries_by_job_ids(job_ids: str) -> pd.DataFrame:
-    pass
+def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filters the incoming DataFrame to only include rows where the value in the 'Job Id' column matches one of the
+    job ids.
+
+    Parameters:
+    :param job_ids: A string of job ids separated by commas. Special characters will be removed and the string will be
+    converted to upper case.
+    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'Job Id'.
+
+    Returns:
+    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'Job Id' value matches one of the job ids.
+    """
+    job_ids = remove_special_chars(job_ids)
+    job_ids = job_ids.upper()
+
+    if not isinstance(job_ids, list):
+        job_ids = job_ids.replace(" ", "").split(",")
+
+    # This is using the isin function which checks each value in the 'Job Id' column to see if it's in the job_ids list
+    return incoming_dataframe[incoming_dataframe['Job Id'].isin(job_ids)]
 
 
-def get_account_logs_by_job_ids(job_ids: str) -> pd.DataFrame:
-    pass
+def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
+    """
+
+    """
+    jobs = time_series['Job Id'].to_list()
+
+    return account_log[account_log['Job Id'].isin(jobs)]
 
 
 def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
