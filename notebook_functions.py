@@ -1,15 +1,18 @@
+import base64
+import io
 import os
 import ipywidgets
 import numpy as np
 import pandas as pd
-from IPython.display import display, FileLink
+from IPython.display import display, FileLink, HTML
 from ipywidgets import widgets
 from datetime import datetime
 import re
 import psycopg2
+import xlsxwriter
 
 
-# ---------- UTILITY FUNCTIONS ------
+# ---------- UTILITY FUNCTIONS ------------
 
 def remove_special_chars(s: str) -> str:
     """
@@ -84,7 +87,7 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     #     return df
 
 
-# -------------- CELL 4 --------------
+# -------------- CELL 3 --------------
 
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
     """
@@ -147,7 +150,7 @@ def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log
     return merged_df
 
 
-# -------------- CELL 5 --------------
+# -------------- CELL 4 --------------
 def setup_widgets(unit_values: dict, value):
     """
     Sets up interactive widgets for entering a low and a high value for a given parameter.
@@ -162,24 +165,26 @@ def setup_widgets(unit_values: dict, value):
     None. This function doesn't return anything; it creates and displays interactive widgets in a Jupyter notebook.
     """
     value_range = widgets.FloatRangeSlider(
-    value=[0.01,99.99],
-    min=0,
-    max=100,
-    step=0.01,
-    orientation='horizontal',
-    readout=False,
-    description=f'{value} Range:',
-    disabled=False,
-    style={'description_width': 'initial'},
-    layout=widgets.Layout(width="99%")
+        value=[0.01, 99.99],
+        min=0,
+        max=100,
+        step=0.01,
+        orientation='horizontal',
+        readout=False,
+        description=f'{value} Range:',
+        disabled=False,
+        style={'description_width': 'initial'},
+        layout=widgets.Layout(width="99%")
     )
     range_low_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
     range_high_text = widgets.FloatText(layout=widgets.Layout(width="50%"))
 
     labels = widgets.HBox(
         [
-            widgets.Box([widgets.Label("Low Value:"), range_low_text], layout=widgets.Layout(justify_content="space-around", width="30%") ),
-            widgets.Box( [widgets.Label("High Value:"), range_high_text], layout=widgets.Layout(justify_content="space-between", width="30%"))
+            widgets.Box([widgets.Label("Low Value:"), range_low_text],
+                        layout=widgets.Layout(justify_content="space-around", width="30%")),
+            widgets.Box([widgets.Label("High Value:"), range_high_text],
+                        layout=widgets.Layout(justify_content="space-between", width="30%"))
         ],
         layout=widgets.Layout(justify_content="space-between"))
 
@@ -188,9 +193,9 @@ def setup_widgets(unit_values: dict, value):
         layout=widgets.Layout(width="50%")
     )
     ipywidgets.dlink((value_range, 'value'), (range_low_text, 'value'), transform=lambda x: x[0])
-    ipywidgets.dlink((range_low_text, 'value') ,(value_range, 'value'), transform=lambda x: (x,value_range.value[1]))
+    ipywidgets.dlink((range_low_text, 'value'), (value_range, 'value'), transform=lambda x: (x, value_range.value[1]))
     ipywidgets.dlink((value_range, 'value'), (range_high_text, 'value'), transform=lambda x: x[1])
-    ipywidgets.dlink((range_high_text, 'value') ,(value_range, 'value'), transform=lambda x: (value_range.value[0],x))
+    ipywidgets.dlink((range_high_text, 'value'), (value_range, 'value'), transform=lambda x: (value_range.value[0], x))
     display(container)
     button = widgets.Button(description="Save Values")
     display(button)
@@ -311,7 +316,7 @@ node_list = {'NODE1', 'NODE2', 'NODE3', 'NODE4', 'NODE5', 'NODE6', 'NODE7', 'NOD
              'NODE205', 'NODE206', 'NODE207', 'NODE325'}
 
 
-# -------------- CELL 6 --------------
+# -------------- CELL 5 --------------
 
 def get_timeseries_by_timestamp(begin_time: str, end_time: str, return_columns: list) -> pd.DataFrame:
     pass
@@ -367,16 +372,45 @@ def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) ->
 
 def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
     """
+    Filters the provided account_log DataFrame to only include rows where the 'Job Id' is also found in the time_series DataFrame.
 
+    Parameters:
+    :param time_series: A pandas DataFrame that contains a column 'Job Id'. These job ids are used to filter the account_log DataFrame.
+    :param account_log: A pandas DataFrame that contains a column 'Job Id'. The rows of account_log DataFrame are filtered based on the 'Job Id' column.
+
+    Returns:
+    :return: A pandas DataFrame which is a subset of the provided account_log DataFrame. It only contains the rows where 'Job Id'
+             is also found in the time_series DataFrame.
     """
     jobs = time_series['Job Id'].to_list()
 
     return account_log[account_log['Job Id'].isin(jobs)]
 
 
-def create_download_link(df: pd.DataFrame, title="Download CSV file", filename="data.csv"):
-    df.to_csv(filename, index=False)
-    return FileLink(filename)
+def create_csv_download_link(df, title=None, filename="data.csv"):
+    csv = df.to_csv()
+    b64 = base64.b64encode(csv.encode())
+    payload = b64.decode()
+    html = '<a download="{filename}" href="data:text/csv;base64,{payload}" target="_blank">{title}</a>'
+    html = html.format(payload=payload, title=title, filename=filename)
+    return HTML(html)
+
+
+def create_excel_download_link(df, title=None, filename="data.xlsx"):
+    output = io.BytesIO()
+    # Write the DataFrame to the BytesIO object as an Excel file
+    df.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
+    # Get the Excel file data
+    excel_data = output.getvalue()
+    # Encode the Excel file data to base64
+    b64 = base64.b64encode(excel_data)
+    # Create the payload
+    payload = b64.decode()
+    # Create the HTML link
+    html = '<a download="{filename}" href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{payload}" target="_blank">{title}</a>'
+    html = html.format(payload=payload, title=title, filename=filename)
+    # Return the HTML link
+    return HTML(html)
 
 
 # -------------- CELL 7 --------------
