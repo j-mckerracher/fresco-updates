@@ -415,12 +415,12 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
 
 # -------------- CELL 7 --------------
 # Aryamaan
-def get_average() -> pd.DataFrame:
+def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     pass
 
 
 # Aryamaan
-def get_mean():
+def get_mean(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     pass
 
 
@@ -443,21 +443,41 @@ def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Data
              DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
              rolling is False, the result will be a Series with the overall median.
     """
-    # drop columns not needed
-    time_series.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
+    result = time_series.copy()
+    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
 
     if rolling:
-        return time_series.rolling(window=window).median()
+        return result.rolling(window=window).median()
 
-    return time_series.median()
-
-
+    return result.median()
 
 
+def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
+    """
+    Calculates the standard deviation of the provided time_series DataFrame, either on the entire DataFrame or on a
+    rolling window basis.
 
+    Parameters:
+    :param time_series: A pandas DataFrame that contains a column 'Value'. The standard deviation is calculated on the
+                        'Value' column.
+    :param rolling: A boolean indicating whether the standard deviation should be calculated for the entire DataFrame
+                    (False) or on a rolling window basis (True).
+    :param window: The size of the rolling window for which the standard deviation is to be calculated. It should be
+                    specified in string format like use D for days, H for hours, T for minutes, and S for seconds. This
+                    parameter is considered only if rolling is set to True.
 
-def get_standard_deviation():
-    pass
+    Returns:
+    :return: A pandas DataFrame or Series which contains the standard deviation of the 'Value' column of the provided
+            time_series DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window
+            standard deviation. If rolling is False, the result will be a Series with the overall standard deviation.
+    """
+    result = time_series.copy()
+    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
+
+    if rolling:
+        return result.rolling(window=window).std()
+
+    return result.std()
 
 
 def get_probability_density():
