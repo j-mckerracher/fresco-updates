@@ -480,14 +480,6 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
     return result.std()
 
 
-def get_probability_density():
-    pass
-
-
-def get_cumulative_density():
-    pass
-
-
 def get_data_points_outside_threshold():
     pass
 
