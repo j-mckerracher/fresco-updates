@@ -402,24 +402,24 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
 def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_median: pd.DataFrame,
                  df_std: pd.DataFrame, start, end):
     """
-        This function plots various statistics (average, mean, median, and standard deviation) of a time series data.
-        It can either print the statistic value over a given period (non-rolling) or plot the rolling statistics over time.
+    This function plots various statistics (average, mean, median, and standard deviation) of a time series data.
+    It can either print the statistic value over a given period (non-rolling) or plot the rolling statistics over time.
 
-        Parameters:
-        :param stats_value: A list of strings indicating which statistics to consider. Valid entries include 'Average',
-                            'Mean', 'Median', and 'Standard Deviation'.
-        :param rolling: A boolean indicating whether to print the statistics (False) or plot them over time (True).
-        :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
-        :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
-        :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
-        :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
-        :param start: A datetime object that represents the start time of the data to be considered.
-        :param end: A datetime object that represents the end time of the data to be considered.
+    Parameters:
+    :param stats_value: A list of strings indicating which statistics to consider. Valid entries include 'Average',
+                        'Mean', 'Median', and 'Standard Deviation'.
+    :param rolling: A boolean indicating whether to print the statistics (False) or plot them over time (True).
+    :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
+    :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
+    :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
+    :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
+    :param start: A datetime object that represents the start time of the data to be considered.
+    :param end: A datetime object that represents the end time of the data to be considered.
 
-        Returns:
-        :return: This function does not return anything. Instead, it prints the statistics over a given period if rolling
-                 is False or creates a plot of the rolling statistics over time if rolling is True. The type of statistics
-                 plotted depends on the choices provided in the 'stats_value' parameter.
+    Returns:
+    :return: This function does not return anything. Instead, it prints the statistics over a given period if rolling
+             is False or creates a plot of the rolling statistics over time if rolling is True. The type of statistics
+             plotted depends on the choices provided in the 'stats_value' parameter.
     """
     time_format = '%Y-%m-%d %H:%M:%S'
 
@@ -452,20 +452,20 @@ def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.D
 
 def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median: pd.DataFrame):
     """
-        This function generates a box and whisker plot for various statistics (average, mean, median, and standard deviation)
-        of a time series data, as contained within provided DataFrames.
+    This function generates a box and whisker plot for various statistics (average, mean, median, and standard deviation)
+    of a time series data, as contained within provided DataFrames.
 
-        Parameters:
-        :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
-        :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
-        :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
-        :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
+    Parameters:
+    :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
+    :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
+    :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
+    :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
 
-        Returns:
-        :return: This function does not return anything. Instead, it plots a box and whisker plot for the provided
-                 statistics. Each box in the plot represents one of the statistics. The box extends from the lower to
-                 upper quartile values of the data, with a line at the median. The whiskers extend from the box to show
-                 the range of the data. Outlier points are those past the end of the whiskers.
+    Returns:
+    :return: This function does not return anything. Instead, it plots a box and whisker plot for the provided
+             statistics. Each box in the plot represents one of the statistics. The box extends from the lower to
+             upper quartile values of the data, with a line at the median. The whiskers extend from the box to show
+             the range of the data. Outlier points are those past the end of the whiskers.
     """
     print("Generating box and whisker plot. . .")
     # Collect statistics into a list of pandas Series or numpy arrays
@@ -519,25 +519,25 @@ def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd
 
 def plot_rolling_basic_stats(interval_type_value: str, time_value, time_units_value, unit_values: dict):
     """
-        This function generates a plot for rolling basic statistics of a time series data. The function allows the rolling
-        window to be specified either as a fixed count of data points or as a fixed time interval. The y-axis represents
-        the units of measure for the time series data, which can be multiple.
+    This function generates a plot for rolling basic statistics of a time series data. The function allows the rolling
+    window to be specified either as a fixed count of data points or as a fixed time interval. The y-axis represents
+    the units of measure for the time series data, which can be multiple.
 
-        Parameters:
-        :param interval_type_value: A string that specifies the type of interval for the rolling window. Valid values
-                                    are "Count" for a fixed count of data points and "Time" for a fixed time interval.
-        :param time_value: If interval_type_value is "Count", this is the count of data points for the rolling window. If
-                           interval_type_value is "Time", this is the length of the time interval for the rolling window.
-        :param time_units_value: If interval_type_value is "Time", this specifies the units of the time interval. Valid values
-                                 are "Days", "Hours", "Minutes", and "Seconds". This parameter is ignored if
-                                 interval_type_value is "Count".
-        :param unit_values: A dictionary where the keys are the units of measure for the time series data. The dictionary values
-                            are not used by this function.
+    Parameters:
+    :param interval_type_value: A string that specifies the type of interval for the rolling window. Valid values
+                                are "Count" for a fixed count of data points and "Time" for a fixed time interval.
+    :param time_value: If interval_type_value is "Count", this is the count of data points for the rolling window. If
+                       interval_type_value is "Time", this is the length of the time interval for the rolling window.
+    :param time_units_value: If interval_type_value is "Time", this specifies the units of the time interval. Valid values
+                             are "Days", "Hours", "Minutes", and "Seconds". This parameter is ignored if
+                             interval_type_value is "Count".
+    :param unit_values: A dictionary where the keys are the units of measure for the time series data. The dictionary values
+                        are not used by this function.
 
-        Returns:
-        :return: This function does not return anything. Instead, it creates a plot with the x-axis representing the rolling
-                 window and the y-axis representing the units of measure for the time series data. The plot style is set
-                 to 'fivethirtyeight', which is a popular matplotlib style, known for its clear and clean aesthetics.
+    Returns:
+    :return: This function does not return anything. Instead, it creates a plot with the x-axis representing the rolling
+             window and the y-axis representing the units of measure for the time series data. The plot style is set
+             to 'fivethirtyeight', which is a popular matplotlib style, known for its clear and clean aesthetics.
     """
     print("Plotting time series stats . . .")
     time_map = {'Days': 'D', 'Hours': 'H', 'Minutes': 'T', 'Seconds': 'S'}
@@ -564,17 +564,17 @@ def plot_rolling_basic_stats(interval_type_value: str, time_value, time_units_va
 
 def plot_pdf(ts_df: pd.DataFrame):
     """
-        This function generates a Probability Density Function (PDF) plot for a given time series DataFrame.
+    This function generates a Probability Density Function (PDF) plot for a given time series DataFrame.
 
-        Parameters:
-        :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
-                      data for which the PDF will be calculated and plotted.
+    Parameters:
+    :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+                  data for which the PDF will be calculated and plotted.
 
-        Returns:
-        :return: This function does not return anything. Instead, it creates a histogram and overlaid kernel density
-                 estimate plot using seaborn's histplot function. The x-axis of the plot represents the 'Value' column
-                 from the input DataFrame, and the y-axis represents the estimated probability density. The title of
-                 the plot is 'Probability Density Function (PDF)'.
+    Returns:
+    :return: This function does not return anything. Instead, it creates a histogram and overlaid kernel density
+             estimate plot using seaborn's histplot function. The x-axis of the plot represents the 'Value' column
+             from the input DataFrame, and the y-axis represents the estimated probability density. The title of
+             the plot is 'Probability Density Function (PDF)'.
     """
     print("Plotting PDF . . .")
     time_series_df = ts_df.dropna()
@@ -585,17 +585,17 @@ def plot_pdf(ts_df: pd.DataFrame):
 
 def plot_cdf(ts_df: pd.DataFrame):
     """
-        This function generates a Cumulative Distribution Function (CDF) plot for a given time series DataFrame.
+    This function generates a Cumulative Distribution Function (CDF) plot for a given time series DataFrame.
 
-        Parameters:
-        :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
-                      data for which the CDF will be calculated and plotted.
+    Parameters:
+    :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+                  data for which the CDF will be calculated and plotted.
 
-        Returns:
-        :return: This function does not return anything. Instead, it creates a step plot using seaborn's histplot function,
-                 with the cumulative option set to True. The x-axis of the plot represents the 'Value' column from the
-                 input DataFrame, and the y-axis represents the cumulative frequency. The title of the plot is
-                 'Cumulative Distribution Function (CDF)'.
+    Returns:
+    :return: This function does not return anything. Instead, it creates a step plot using seaborn's histplot function,
+             with the cumulative option set to True. The x-axis of the plot represents the 'Value' column from the
+             input DataFrame, and the y-axis represents the cumulative frequency. The title of the plot is
+             'Cumulative Distribution Function (CDF)'.
     """
     print("Plotting CDF . . .")
     time_series_df = ts_df.dropna()
