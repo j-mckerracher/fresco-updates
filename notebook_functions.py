@@ -8,8 +8,7 @@ from IPython.display import display, FileLink, HTML
 from ipywidgets import widgets
 from datetime import datetime
 import re
-import psycopg2
-import xlsxwriter
+from scipy.stats import pearsonr
 from matplotlib import pyplot as plt
 import seaborn as sns
 
@@ -400,7 +399,8 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
     return result.std()
 
 
-def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_median: pd.DataFrame, df_std: pd.DataFrame, start, end):
+def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_median: pd.DataFrame,
+                 df_std: pd.DataFrame, start, end):
     """
         This function plots various statistics (average, mean, median, and standard deviation) of a time series data.
         It can either print the statistic value over a given period (non-rolling) or plot the rolling statistics over time.
@@ -636,8 +636,60 @@ def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFram
 
 
 # -------------- CELL 8 --------------
-def calculate_correlation():
-    pass
+
+def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
+    """
+    This function calculates the Pearson Correlation Coefficient between two time series.
+
+    Parameters:
+    time_series: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+                 data for which the Pearson Correlation Coefficient will be calculated.
+    correlations: A tuple of two elements, each representing the metric to be used for correlation calculation.
+
+    Returns:
+    This function does not return anything. Instead, it prints the Pearson Correlation Coefficient
+    between the two time series.
+    """
+    print("Calculating Pearson Correlation Coefficient . . .")
+    metric_one, metric_two = correlations
+
+    # The duplicated function returns a boolean Series denoting duplicate index values, and
+    # the ~ operator is used to invert the boolean values. This way we're keeping only the
+    # rows where the index is not duplicated
+    ts_metric_one = time_series[time_series['Event'] == metric_one]
+    ts_metric_one = ts_metric_one[~ts_metric_one.index.duplicated(keep='first')]
+
+    ts_metric_two = time_series[time_series['Event'] == metric_two]
+    ts_metric_two = ts_metric_two[~ts_metric_two.index.duplicated(keep='first')]
+
+    # find common timestamps using index intersection
+    common_timestamps = ts_metric_one.index.intersection(ts_metric_two.index)
+
+    metric_one_values = ts_metric_one.loc[common_timestamps, 'Value'].values
+    metric_two_values = ts_metric_two.loc[common_timestamps, 'Value'].values
+
+    # Check if both lists have same length before calculating correlation
+    if len(metric_one_values) == len(metric_two_values):
+        correlation, p_val = pearsonr(metric_one_values, metric_two_values)
+
+        # Create a scatter plot
+        plt.figure(figsize=(10, 6))
+        plt.scatter(metric_one_values, metric_two_values)
+        plt.xlabel(correlations[0])
+        plt.ylabel(correlations[1])
+        plt.title(f'Scatter plot of {metric_one} and {metric_two}')
+
+        # Add a text box with the correlation and p-value
+        text_str = f'Correlation: {correlation:.10f}\nP-value: {p_val:.10f}'
+        plt.text(0.05, 0.95, text_str, transform=plt.gca().transAxes, fontsize=14,
+                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.show()
+
+        return {"Correlation": correlation, "P-value": p_val}
+    else:
+        print(f'The two metrics do not have the same amount of sampling in the data, '
+              f'one is {len(metric_one_values)}, and the other is {len(metric_two_values)}')
 
 
 # -------------- CELL 9 --------------
