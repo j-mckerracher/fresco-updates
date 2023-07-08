@@ -10,6 +10,8 @@ from datetime import datetime
 import re
 import psycopg2
 import xlsxwriter
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 
 # ---------- UTILITY FUNCTIONS ------------
@@ -413,7 +415,7 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
     return HTML(html)
 
 
-# -------------- CELL 7 --------------
+# -------------- CELL 6 --------------
 # Aryamaan
 def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     pass
@@ -480,12 +482,125 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
     return result.std()
 
 
-def get_data_points_outside_threshold():
-    pass
+def plot_box_and_whisker(df_avg, df_mean, df_std, df_median):
+    # Collect statistics into a list of pandas Series or numpy arrays
+    all_data = []
+    labels = []
+    color_choices = []
+    if not df_avg.empty:
+        df_avg.dropna(subset=['Value'], inplace=True)
+        all_data.append(df_avg['Value'])
+        labels.append('Average')
+        color_choices.append('pink')
+    if not df_mean.empty:
+        df_mean.dropna(subset=['Value'], inplace=True)
+        all_data.append(df_mean['Value'])
+        labels.append('Mean')
+        color_choices.append('lightblue')
+    if not df_median.empty:
+        df_median.dropna(subset=['Value'], inplace=True)
+        all_data.append(df_median['Value'])
+        labels.append('Median')
+        color_choices.append('lightgreen')
+    if not df_std.empty:
+        df_std.dropna(subset=['Value'], inplace=True)
+        all_data.append(df_std['Value'])
+        labels.append('Standard Deviation')
+        color_choices.append('lightyellow')
+
+    # Create a new figure and axis for the box plot
+    fig, ax = plt.subplots()
+
+    # Create the box plot
+    if len(all_data) > 0:
+        print("Plotting stats . . .")
+        bplot = ax.boxplot(all_data,
+                           vert=True,  # vertical box alignment
+                           notch=True,  # notch shape
+                           patch_artist=True,  # fill with color
+                           labels=labels)  # will be used to label x-ticks
+
+        # fill with colors
+        colors = color_choices
+        for patch, color in zip(bplot['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # adding horizontal grid lines
+        ax.yaxis.grid(True)
+        ax.set_xlabel('Statistic')
+        ax.set_ylabel('Values')
+
+        plt.show()
 
 
-def get_ratio_of_data_points_outside_threshold():
-    pass
+def plot_rolling_basic_stats(interval_type_value, time_value, time_units_value, unit_values):
+    time_map = {'Days': 'D', 'Hours': 'H', 'Minutes': 'T', 'Seconds': 'S'}
+
+    x_axis_label = ""
+    if interval_type_value == "Count":
+        x_axis_label += f"Timestamp - Rolling Window: {time_value:,} Rows"
+    elif interval_type_value == "Time":
+        x_axis_label += f"Timestamp - Rolling Window: {time_value}{time_map[time_units_value]}"
+
+    y_axis_label = ""
+    if len(unit_values) > 0:
+        for key in unit_values.keys():
+            y_axis_label += f"{key} "
+
+    plt.gcf().autofmt_xdate()  # auto formats datetimes
+    plt.style.use('fivethirtyeight')
+    plt.legend(loc='upper left', fontsize="10")
+    plt.xlabel(x_axis_label)
+    plt.ylabel(y_axis_label)
+    plt.grid()
+    plt.show()
+
+
+def plot_pdf(ts_df: pd.DataFrame):
+    print("Plotting PDF . . .")
+    time_series_df = ts_df.dropna()
+    sns.histplot(time_series_df['Value'], kde=True)
+    plt.title('Probability Density Function (PDF)')
+    plt.show()
+
+
+def plot_cdf(ts_df: pd.DataFrame):
+    print("Plotting CDF . . .")
+    time_series_df = ts_df.dropna()
+    sns.histplot(time_series_df['Value'], cumulative=True, element="step", fill=False)
+    plt.title('Cumulative Distribution Function (CDF)')
+    plt.show()
+
+
+def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFrame):
+    print("Plotting Ratio of Data Outside Threshold . . .")
+    threshold = ratio_threshold_value
+
+    # Here we calculate the ratio of data outside the threshold
+    num_data_points = len(ts_df['Value'])
+    num_outside_threshold = sum(abs(ts_df['Value']) > threshold)
+
+    ratio_outside_threshold = num_outside_threshold / num_data_points
+
+    # Plotting
+    plt.bar(['Inside Threshold', 'Outside Threshold'], [1 - ratio_outside_threshold, ratio_outside_threshold])
+    plt.title('Ratio of Data Outside Threshold')
+    plt.ylabel('Ratio')
+    plt.show()
+
+
+#     print("Plotting data with threshold band . . .")
+#     threshold = ratio_threshold.value
+# fig, ax = plt.subplots() ax.plot(time_series_df.index, time_series_df['Value'], label='Data', color='tab:blue')
+# ax.fill_between(time_series_df.index, threshold, time_series_df['Value'].where(time_series_df['Value']>=threshold),
+# where=(time_series_df['Value']>=threshold), color='tab:red', alpha=0.2, label='Above Threshold') ax.fill_between(
+# time_series_df.index, -threshold, time_series_df['Value'].where(time_series_df['Value']<=-threshold),
+# where=(time_series_df['Value']<=-threshold), color='tab:red', alpha=0.2) ax.axhline(threshold, color='tab:green',
+# linestyle='--', label='Threshold') ax.axhline(-threshold, color='tab:green', linestyle='--')
+#     ax.set_title('Data with Threshold Band')
+#     ax.set_ylabel('Value')
+#     ax.legend(loc='upper right')
+#     plt.show()
 
 
 # -------------- CELL 8 --------------
