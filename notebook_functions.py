@@ -335,13 +335,31 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
 # -------------- CELL 6 --------------
 # Aryamaan
 def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
-    pass
+    """
+    Calculates the median of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
+    basis.
 
+    Parameters:
+    :param time_series: A pandas DataFrame that contains a column 'Value'. The median is calculated on the 'Value'
+                        column.
+    :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
+                    on a rolling window basis (True).
+    :param window: The size of the rolling window for which the median is to be calculated. It should be specified
+                   in string format like use D for days, H for hours, T for minutes, and S for seconds. This parameter
+                   is considered only if rolling is set to True.
 
-# Aryamaan
-def get_mean(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
-    pass
+    Returns:
+    :return: A pandas DataFrame or Series which contains the median of the 'Value' column of the provided time_series
+             DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
+             rolling is False, the result will be a Series with the overall median.
+    """
+    result = time_series.copy()
+    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
 
+    if rolling:
+        return result.rolling(window=window).mean()
+
+    return result.mean()
 
 def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     """
@@ -477,11 +495,6 @@ def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd
         all_data.append(df_avg['Value'])
         labels.append('Average')
         color_choices.append('pink')
-    if not df_mean.empty:
-        df_mean.dropna(subset=['Value'], inplace=True)
-        all_data.append(df_mean['Value'])
-        labels.append('Mean')
-        color_choices.append('lightblue')
     if not df_median.empty:
         df_median.dropna(subset=['Value'], inplace=True)
         all_data.append(df_median['Value'])
@@ -576,7 +589,6 @@ def plot_pdf(ts_df: pd.DataFrame):
              from the input DataFrame, and the y-axis represents the estimated probability density. The title of
              the plot is 'Probability Density Function (PDF)'.
     """
-    print("Plotting PDF . . .")
     time_series_df = ts_df.dropna()
     sns.histplot(time_series_df['Value'], kde=True)
     plt.title('Probability Density Function (PDF)')
@@ -597,7 +609,6 @@ def plot_cdf(ts_df: pd.DataFrame):
              input DataFrame, and the y-axis represents the cumulative frequency. The title of the plot is
              'Cumulative Distribution Function (CDF)'.
     """
-    print("Plotting CDF . . .")
     time_series_df = ts_df.dropna()
     sns.histplot(time_series_df['Value'], cumulative=True, element="step", fill=False)
     plt.title('Cumulative Distribution Function (CDF)')
@@ -605,7 +616,6 @@ def plot_cdf(ts_df: pd.DataFrame):
 
 
 def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFrame):
-    print("Plotting Ratio of Data Outside Threshold . . .")
     threshold = ratio_threshold_value
 
     # Here we calculate the ratio of data outside the threshold
@@ -650,7 +660,6 @@ def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
     This function does not return anything. Instead, it prints the Pearson Correlation Coefficient
     between the two time series.
     """
-    print("Calculating Pearson Correlation Coefficient . . .")
     metric_one, metric_two = correlations
 
     # The duplicated function returns a boolean Series denoting duplicate index values, and
