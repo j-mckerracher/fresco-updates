@@ -4,6 +4,8 @@ import os
 import ipywidgets
 import numpy as np
 import pandas as pd
+import psycopg2
+import psycopg2.extras
 from IPython.display import display, FileLink, HTML
 from ipywidgets import widgets
 from datetime import datetime
@@ -57,11 +59,39 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    conn_string = os.environ.get("CONN_STRING")
-    # with psycopg2.connect(conn_string)as conn:
-    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
-    #     df = sqlio.read_sql_query(sql, conn)
-    #     return df
+    # Get the database credentials from the environment variables
+    db_host = os.getenv('DBHOST')
+    db_password = os.getenv('DBPW')
+    db_name = os.getenv('DBNAME')
+    db_user = os.getenv('DBUSER')
+
+    # Establish a connection to the database
+    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+
+    # Create a cursor object
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Define the SQL query
+    sql_query = """
+            SELECT *
+            FROM public.host_data
+            WHERE time >= %s AND time <= %s
+        """
+
+    # Execute the SQL query
+    cur.execute(sql_query, (start_time, end_time))
+
+    # Fetch all rows from the last executed SQL query
+    rows = cur.fetchall()
+
+    # Convert the results into a pandas DataFrame
+    df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
+
+    # Close the cursor and connection
+    cur.close()
+    conn.close()
+
+    return df
 
 
 def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
@@ -72,20 +102,39 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    conn_string = os.environ.get("CONN_STRING")
-    col_mapping = {
-        'Job Id': 'jid',
-        'Hosts': 'host',
-        'Events': 'event',
-        'Units': 'unit',
-        'Values': 'value',
-        'Timestamps': 'time'
-    }
-    # query_cols = [col_mapping[x] for x in return_columns]
-    # with psycopg2.connect(conn_string)as conn:
-    #     sql = f"SELECT {', '.join(query_cols)} FROM public.host_data hd WHERE hd.time >= '{begin_time}' AND hd.time <= '{end_time}';"
-    #     df = sqlio.read_sql_query(sql, conn)
-    #     return df
+    # Get the database credentials from the environment variables
+    db_host = os.getenv('DBHOST')
+    db_password = os.getenv('DBPW')
+    db_name = os.getenv('DBNAME')
+    db_user = os.getenv('DBUSER')
+
+    # Establish a connection to the database
+    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+
+    # Create a cursor object
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Define the SQL query
+    sql_query = """
+            SELECT *
+            FROM public.job_data
+            WHERE time >= %s AND time <= %s
+        """
+
+    # Execute the SQL query
+    cur.execute(sql_query, (start_time, end_time))
+
+    # Fetch all rows from the last executed SQL query
+    rows = cur.fetchall()
+
+    # Convert the results into a pandas DataFrame
+    df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
+
+    # Close the cursor and connection
+    cur.close()
+    conn.close()
+
+    return df
 
 
 # -------------- CELL 3 --------------
