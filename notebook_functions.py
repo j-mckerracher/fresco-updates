@@ -118,7 +118,7 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     sql_query = """
             SELECT *
             FROM public.job_data
-            WHERE time >= %s AND time <= %s
+            WHERE start_time >= %s AND end_time <= %s
         """
 
     # Execute the SQL query
