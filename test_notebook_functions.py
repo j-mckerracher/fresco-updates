@@ -1,5 +1,5 @@
 import argparse
-from notebook_functions import get_time_series_from_database
+import notebook_functions as nbf
 
 
 def main():
@@ -9,9 +9,14 @@ def main():
 
     args = parser.parse_args()
 
-    df = get_time_series_from_database(args.start_time, args.end_time)
+    df = nbf.get_time_series_from_database(args.start_time, args.end_time)
 
+    print("time series:")
     print(df)
+
+    df2 = nbf.get_account_log_from_database(args.start_time, args.end_time)
+    print("account log:")
+    print(df2)
 
 
 if __name__ == "__main__":
