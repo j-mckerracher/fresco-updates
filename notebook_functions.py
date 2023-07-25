@@ -66,7 +66,7 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     db_user = os.getenv('DBUSER')
 
     # Establish a connection to the database
-    conn = psycopg2.connect(host="frescodb", dbname="anvil", user="admin", password=db_password)
+    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
 
     # Create a cursor object
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
