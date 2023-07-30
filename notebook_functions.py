@@ -66,7 +66,8 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     db_user = os.getenv('DBUSER')
 
     # Establish a connection to the database
-    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    # conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    conn = psycopg2.connect(host="localhost", dbname="postgres", user="postgres", password="Envision9")
 
     # Create a cursor object
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -109,7 +110,8 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     db_user = os.getenv('DBUSER')
 
     # Establish a connection to the database
-    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    # conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    conn = psycopg2.connect(host="localhost", dbname="postgres", user="postgres", password="Envision9")
 
     # Create a cursor object
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -259,13 +261,50 @@ def setup_widgets(unit_values: dict, value):
 
 
 # -------------- CELL 5 --------------
-
-def get_timeseries_by_timestamp(begin_time: str, end_time: str, return_columns: list) -> pd.DataFrame:
-    pass
-
-
 def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.DataFrame:
-    pass
+    """
+    Filters the input dataframe to return only those rows where the 'unit' column matches the keys
+    in the input dictionary and the 'value' column is within the range specified by the corresponding
+    value in the dictionary.
+
+    Parameters:
+    :param units: A dictionary where keys are the units to be matched and values are tuples indicating
+    the inclusive range of acceptable values for the 'value' column.
+    :param ts_df: The input pandas DataFrame which contains the columns 'unit' and 'value' among others.
+
+    Returns:
+    A pandas DataFrame that contains only the rows from the input dataframe that meet the criteria specified
+    by the 'units' dictionary.
+    """
+    # Check that units dictionary is not empty
+    if not units:
+        raise ValueError("The units dictionary is empty.")
+
+    # Check that DataFrame is not empty and contains necessary columns
+    if ts_df.empty or 'unit' not in ts_df.columns or 'value' not in ts_df.columns:
+        raise ValueError("DataFrame is either empty or does not contain 'unit' and 'value' columns.")
+
+    df_list = []
+
+    # Loop over the dictionary
+    for unit, range_slider in units.items():
+        # Get the range value from the widget
+        value_range = range_slider.value
+
+        # Check that the range value is a valid tuple of two floats
+        if not isinstance(value_range, tuple) or len(value_range) != 2 or not all(
+                isinstance(i, float) for i in value_range):
+            raise ValueError(f"Invalid range value for unit '{unit}': {value_range}. Must be a tuple of two floats.")
+
+        # Filter the DataFrame
+        print(f"Filtering Dataframe for {unit}. . .")
+        mask = (ts_df['unit'] == unit) & (ts_df['value'] >= value_range[0]) & (ts_df['value'] <= value_range[1])
+        filtered_df = ts_df.loc[mask]
+        df_list.append(filtered_df)
+
+    # Concatenate all the filtered DataFrames and remove duplicates
+    result = pd.concat(df_list).drop_duplicates()
+    return result
 
 
 def get_timeseries_by_hosts(hosts: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -286,7 +325,7 @@ def get_timeseries_by_hosts(hosts: str, incoming_dataframe: pd.DataFrame) -> pd.
         hosts = hosts.replace(" ", "").split(",")
 
     # This is using the isin function which checks each value in the 'Host' column to see if it's in the hosts list
-    return incoming_dataframe[incoming_dataframe['Host'].isin(hosts)]
+    return incoming_dataframe[incoming_dataframe['host'].isin(hosts)]
 
 
 def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -309,7 +348,7 @@ def get_timeseries_by_job_ids(job_ids: str, incoming_dataframe: pd.DataFrame) ->
         job_ids = job_ids.replace(" ", "").split(",")
 
     # This is using the isin function which checks each value in the 'Job Id' column to see if it's in the job_ids list
-    return incoming_dataframe[incoming_dataframe['Job Id'].isin(job_ids)]
+    return incoming_dataframe[incoming_dataframe['jid'].isin(job_ids)]
 
 
 def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataFrame) -> pd.DataFrame:
@@ -324,9 +363,43 @@ def get_account_logs_by_job_ids(time_series: pd.DataFrame, account_log: pd.DataF
     :return: A pandas DataFrame which is a subset of the provided account_log DataFrame. It only contains the rows where 'Job Id'
              is also found in the time_series DataFrame.
     """
-    jobs = time_series['Job Id'].to_list()
+    jobs = time_series['jid'].to_list()
 
-    return account_log[account_log['Job Id'].isin(jobs)]
+    return account_log[account_log['jid'].isin(jobs)]
+
+
+def filter_return_columns(ts_return_col: list, time_series: pd.DataFrame) -> pd.DataFrame:
+    """
+    This function filters the incoming timeseries DataFrame such that the returned DataFrame only contains those columns
+    that are included in the ts_return_col argument.
+
+    Parameters:
+    :param ts_return_col: A list of column names that should be included in the returned DataFrame.
+    :param time_series: The input pandas DataFrame from which columns should be selected.
+
+    Returns:
+    A pandas DataFrame that contains only the columns from the input DataFrame that are listed in ts_return_col.
+    """
+
+    # Check that the input is a DataFrame
+    if not isinstance(time_series, pd.DataFrame):
+        raise TypeError(f"Input 'time_series' is not a DataFrame. Received {type(time_series).__name__} instead.")
+
+    # Check that the DataFrame is not empty
+    if time_series.empty:
+        raise ValueError("Input DataFrame is empty.")
+
+    # Check if ts_return_col is a list
+    if not isinstance(ts_return_col, list):
+        raise TypeError(f"Input 'ts_return_col' is not a list. Received {type(ts_return_col).__name__} instead.")
+
+    # Check if all elements in ts_return_col are in the DataFrame's columns
+    if not set(ts_return_col).issubset(set(time_series.columns)):
+        missing_cols = set(ts_return_col) - set(time_series.columns)
+        raise ValueError(f"Columns {missing_cols} are not present in the input DataFrame.")
+
+    # Return a DataFrame containing only the desired columns
+    return time_series[ts_return_col]
 
 
 def create_csv_download_link(df, title=None, filename="data.csv"):
@@ -403,12 +476,13 @@ def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Dat
              rolling is False, the result will be a Series with the overall median.
     """
     result = time_series.copy()
-    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
+    result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
     if rolling:
         return result.rolling(window=window).mean()
 
     return result.mean()
+
 
 def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     """
@@ -430,7 +504,7 @@ def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Data
              rolling is False, the result will be a Series with the overall median.
     """
     result = time_series.copy()
-    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
+    result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
     if rolling:
         return result.rolling(window=window).median()
@@ -458,7 +532,7 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
             standard deviation. If rolling is False, the result will be a Series with the overall standard deviation.
     """
     result = time_series.copy()
-    result.drop(['Job Id', 'Host', 'Event', 'Units'], axis=1, inplace=True)
+    result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
     if rolling:
         return result.rolling(window=window).std()
