@@ -140,62 +140,56 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
 # -------------- CELL 3 --------------
 
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
-    """
-    Adds an interval column to a merged DataFrame based on the timestamps of the event series. It also ensures that
-    intervals are correctly calculated across different jobs and hosts. The function assumes that the account_log
-    DataFrame has an 'End Time' column and both account_log and time_series DataFrames have a 'Job Id' column.
+    # Convert the 'end_time' column to datetime
+    account_log['end_time'] = pd.to_datetime(account_log['end_time'])
+    # Convert the 'end_time' column to timezone-naive if necessary
+    if pd.api.types.is_datetime64tz_dtype(account_log['end_time']):
+        account_log['end_time'] = account_log['end_time'].dt.tz_convert(None)
 
-    Parameters:
-    :param ending_time: A string representing the ending time to be compared with timestamps in the DataFrame.
-                        The string should be in a format that pandas can convert into a datetime object.
-
-    :param time_series: A pandas DataFrame containing time series data. This DataFrame should at least contain 'Job Id',
-                        'Host', 'Event', and 'Timestamp' columns.
-
-    :param account_log: A pandas DataFrame containing account logs. This DataFrame should at least contain 'Job Id' and
-                        'End Time' columns. 'End Time' will be converted into datetime format within the function.
-
-    Returns:
-    :return: A pandas DataFrame that is the result of merging time_series and account_log DataFrames, dropping
-             duplicates based on 'Job Id', 'Host', 'Event' and adding an 'Interval' column. This DataFrame also
-             contains the columns 'Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp', 'Interval'. The 'Interval'
-             column represents the time difference between consecutive events, considering 'Job Id', 'Host', and 'Event'.
-    """
-    # Convert the 'End Time' column to datetime
-    account_log['End Time'] = pd.to_datetime(account_log['End Time'])
-
-    # Merge both dataframes on the 'Job Id' column
-    merged_df = pd.merge(time_series, account_log, on='Job Id', how='inner')
+    # Merge both dataframes on the 'jid' column
+    merged_df = pd.merge(time_series, account_log, on='jid', how='inner')
 
     # Drop duplicates based on the columns that will form the multi-index
-    merged_df = merged_df.drop_duplicates(subset=['Job Id', 'Host', 'Event'])
+    merged_df = merged_df.drop_duplicates(subset=['jid', 'host', 'event'])
 
     # Now we set a multi-index
-    merged_df.set_index(['Job Id', 'Host', 'Event'], inplace=True)
+    merged_df.set_index(['jid', 'host', 'event'], inplace=True)
     merged_df.sort_index(inplace=True)
 
-    merged_df['Interval'] = merged_df.groupby(level=[0, 1, 2])['Timestamp'].diff().shift(-1).dt.total_seconds()
+    merged_df['interval'] = merged_df.groupby(level=[0, 1, 2])['time'].diff().shift(-1).dt.total_seconds()
 
-    end_time_of_each_job = merged_df['End Time'].values
+    end_time_of_each_job = merged_df['end_time'].values
     is_same_sample = merged_df.index.to_series().shift() == merged_df.index.to_series()
 
     # Align series based on the index before performing subtraction
     end_time_series = pd.Series(end_time_of_each_job, index=merged_df.index)
-    na_intervals_timestamp = merged_df.loc[merged_df['Interval'].isnull(), 'Timestamp']
+    na_intervals_timestamp = merged_df.loc[merged_df['interval'].isnull(), 'time']
+
+    # Convert the 'time' column to timezone-naive if necessary
+    if pd.api.types.is_datetime64tz_dtype(na_intervals_timestamp):
+        na_intervals_timestamp = na_intervals_timestamp.dt.tz_convert(None)
+
     aligned_end_time_series, aligned_na_intervals_timestamp = end_time_series.align(na_intervals_timestamp)
 
-    # Update the 'Interval' column where 'Interval' is NaN
-    merged_df.loc[merged_df['Interval'].isnull(), 'Interval'] = (
+    # Update the 'interval' column where 'interval' is NaN
+    merged_df.loc[merged_df['interval'].isnull(), 'interval'] = (
             aligned_end_time_series - aligned_na_intervals_timestamp
     ).dt.total_seconds()
 
+    # Make sure 'ending_time' is timezone-naive
+    ending_time = pd.to_datetime(ending_time).tz_localize(None)
+
+    # Make sure 'time' column of 'merged_df' is timezone-naive
+    if pd.api.types.is_datetime64tz_dtype(merged_df['time']):
+        merged_df['time'] = merged_df['time'].dt.tz_convert(None)
+
     # Where it's not the same sample, replace w/ minimum between Interval and difference between Z2 and current time
-    merged_df.loc[~is_same_sample, 'Interval'] = np.minimum(
-        merged_df.loc[~is_same_sample, 'Interval'],
-        (pd.to_datetime(ending_time) - merged_df.loc[~is_same_sample, 'Timestamp']).dt.total_seconds()
+    merged_df.loc[~is_same_sample, 'interval'] = np.minimum(
+        merged_df.loc[~is_same_sample, 'interval'],
+        (ending_time - merged_df.loc[~is_same_sample, 'time']).dt.total_seconds()
     )
 
-    merged_df = merged_df.reset_index()[['Job Id', 'Host', 'Event', 'Value', 'Units', 'Timestamp', 'Interval']]
+    merged_df = merged_df.reset_index()[['jid', 'host', 'event', 'value', 'unit', 'time', 'interval']]
 
     return merged_df
 
@@ -272,7 +266,7 @@ def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.Da
 
     Returns:
     A pandas DataFrame that contains only the rows from the input dataframe that meet the criteria specified
-    by the 'units' dictionary.
+    by the 'unit' dictionary.
     """
     # Check that units dictionary is not empty
     if not units:
@@ -295,7 +289,6 @@ def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.Da
             raise ValueError(f"Invalid range value for unit '{unit}': {value_range}. Must be a tuple of two floats.")
 
         # Filter the DataFrame
-        print(f"Filtering Dataframe for {unit}. . .")
         mask = (ts_df['unit'] == unit) & (ts_df['value'] >= value_range[0]) & (ts_df['value'] <= value_range[1])
         filtered_df = ts_df.loc[mask]
         df_list.append(filtered_df)
@@ -307,22 +300,22 @@ def get_timeseries_by_values_and_unit(units: dict, ts_df: pd.DataFrame) -> pd.Da
 
 def get_timeseries_by_hosts(hosts: str, incoming_dataframe: pd.DataFrame) -> pd.DataFrame:
     """
-    Filters the incoming DataFrame to only include rows where the value in the 'Host' column matches one of the hosts.
+    Filters the incoming DataFrame to only include rows where the value in the 'host' column matches one of the hosts.
 
     Parameters:
     :param hosts: A string of host names separated by commas. Special characters will be removed and the string will be
     converted to upper case.
-    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'Host'.
+    :param incoming_dataframe: A pandas DataFrame that includes a column labeled 'host'.
 
     Returns:
-    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'Host' value matches one of the host names.
+    :return pd.DataFrame: A DataFrame filtered to only include rows whose 'host' value matches one of the host names.
     """
     hosts = remove_special_chars(hosts)
     hosts = hosts.upper()
     if not isinstance(hosts, list):
         hosts = hosts.replace(" ", "").split(",")
 
-    # This is using the isin function which checks each value in the 'Host' column to see if it's in the hosts list
+    # This is using the isin function which checks each value in the 'host' column to see if it's in the hosts list
     return incoming_dataframe[incoming_dataframe['host'].isin(hosts)]
 
 
@@ -436,9 +429,16 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
     Returns:
     :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython environment (like Jupyter), it manifests as a clickable download link.
     """
+    df_copy = df.copy()
+
+    # If df has datetime columns, convert them to timezone-naive
+    for col in df.columns:
+        if pd.api.types.is_datetime64tz_dtype(df[col]):
+            df_copy[col] = df[col].dt.tz_convert(None)
+
     output = io.BytesIO()
     # Write the DataFrame to the BytesIO object as an Excel file
-    df.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
+    df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
     # Get the Excel file data
     excel_data = output.getvalue()
     # Encode the Excel file data to base64
@@ -460,7 +460,7 @@ def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Dat
     basis.
 
     Parameters:
-    :param time_series: A pandas DataFrame that contains a column 'Value'. The median is calculated on the 'Value'
+    :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
                         column.
     :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
                     on a rolling window basis (True).
@@ -469,7 +469,7 @@ def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Dat
                    is considered only if rolling is set to True.
 
     Returns:
-    :return: A pandas DataFrame or Series which contains the median of the 'Value' column of the provided time_series
+    :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
              DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
              rolling is False, the result will be a Series with the overall median.
     """
@@ -488,7 +488,7 @@ def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Data
     basis.
 
     Parameters:
-    :param time_series: A pandas DataFrame that contains a column 'Value'. The median is calculated on the 'Value'
+    :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
                         column.
     :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
                     on a rolling window basis (True).
@@ -497,7 +497,7 @@ def get_median(time_series: pd.DataFrame, rolling=False, window=None) -> pd.Data
                    is considered only if rolling is set to True.
 
     Returns:
-    :return: A pandas DataFrame or Series which contains the median of the 'Value' column of the provided time_series
+    :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
              DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
              rolling is False, the result will be a Series with the overall median.
     """
@@ -516,8 +516,8 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
     rolling window basis.
 
     Parameters:
-    :param time_series: A pandas DataFrame that contains a column 'Value'. The standard deviation is calculated on the
-                        'Value' column.
+    :param time_series: A pandas DataFrame that contains a column 'value'. The standard deviation is calculated on the
+                        'value' column.
     :param rolling: A boolean indicating whether the standard deviation should be calculated for the entire DataFrame
                     (False) or on a rolling window basis (True).
     :param window: The size of the rolling window for which the standard deviation is to be calculated. It should be
@@ -525,7 +525,7 @@ def get_standard_deviation(time_series: pd.DataFrame, rolling=False, window=None
                     parameter is considered only if rolling is set to True.
 
     Returns:
-    :return: A pandas DataFrame or Series which contains the standard deviation of the 'Value' column of the provided
+    :return: A pandas DataFrame or Series which contains the standard deviation of the 'value' column of the provided
             time_series DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window
             standard deviation. If rolling is False, the result will be a Series with the overall standard deviation.
     """
@@ -548,10 +548,10 @@ def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.D
     :param stats_value: A list of strings indicating which statistics to consider. Valid entries include 'Average',
                         'Mean', 'Median', and 'Standard Deviation'.
     :param rolling: A boolean indicating whether to print the statistics (False) or plot them over time (True).
-    :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
-    :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
-    :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
-    :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
+    :param df_avg: A pandas DataFrame that contains a column 'value' with the average values of the time series data.
+    :param df_mean: A pandas DataFrame that contains a column 'value' with the mean values of the time series data.
+    :param df_median: A pandas DataFrame that contains a column 'value' with the median values of the time series data.
+    :param df_std: A pandas DataFrame that contains a column 'value' with the standard deviation values of the time series data.
     :param start: A datetime object that represents the start time of the data to be considered.
     :param end: A datetime object that represents the end time of the data to be considered.
 
@@ -566,27 +566,27 @@ def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.D
         if choice == "Average":
             if not rolling:
                 print(
-                    f"{choice}: {df_avg['Value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
+                    f"{choice}: {df_avg['value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
             else:
-                df_avg['Value'].plot(label='Average', color='b')
+                df_avg['value'].plot(label='Average', color='b')
         if choice == "Mean":
             if not rolling:
                 print(
-                    f"{choice}: {df_mean['Value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
+                    f"{choice}: {df_mean['value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
             else:
-                df_mean['Value'].plot(label='Mean', color='g')
+                df_mean['value'].plot(label='Mean', color='g')
         if choice == "Median":
             if not rolling:
                 print(
-                    f"{choice}: {df_median['Value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
+                    f"{choice}: {df_median['value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
             else:
-                df_median['Value'].plot(label='Median', color='r')
+                df_median['value'].plot(label='Median', color='r')
         if choice == "Standard Deviation":
             if not rolling:
                 print(
-                    f"{choice}: {df_std['Value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
+                    f"{choice}: {df_std['value']} for {start.strftime(time_format)} to {end.strftime(time_format)}")
             else:
-                df_std['Value'].plot(label='Std Dev', color='k')
+                df_std['value'].plot(label='Std Dev', color='k')
 
 
 def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median: pd.DataFrame):
@@ -595,10 +595,10 @@ def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd
     of a time series data, as contained within provided DataFrames.
 
     Parameters:
-    :param df_avg: A pandas DataFrame that contains a column 'Value' with the average values of the time series data.
-    :param df_mean: A pandas DataFrame that contains a column 'Value' with the mean values of the time series data.
-    :param df_std: A pandas DataFrame that contains a column 'Value' with the standard deviation values of the time series data.
-    :param df_median: A pandas DataFrame that contains a column 'Value' with the median values of the time series data.
+    :param df_avg: A pandas DataFrame that contains a column 'value' with the average values of the time series data.
+    :param df_mean: A pandas DataFrame that contains a column 'value' with the mean values of the time series data.
+    :param df_std: A pandas DataFrame that contains a column 'value' with the standard deviation values of the time series data.
+    :param df_median: A pandas DataFrame that contains a column 'value' with the median values of the time series data.
 
     Returns:
     :return: This function does not return anything. Instead, it plots a box and whisker plot for the provided
@@ -612,18 +612,18 @@ def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd
     labels = []
     color_choices = []
     if not df_avg.empty:
-        df_avg.dropna(subset=['Value'], inplace=True)
-        all_data.append(df_avg['Value'])
+        df_avg.dropna(subset=['value'], inplace=True)
+        all_data.append(df_avg['value'])
         labels.append('Average')
         color_choices.append('pink')
     if not df_median.empty:
-        df_median.dropna(subset=['Value'], inplace=True)
-        all_data.append(df_median['Value'])
+        df_median.dropna(subset=['value'], inplace=True)
+        all_data.append(df_median['value'])
         labels.append('Median')
         color_choices.append('lightgreen')
     if not df_std.empty:
-        df_std.dropna(subset=['Value'], inplace=True)
-        all_data.append(df_std['Value'])
+        df_std.dropna(subset=['value'], inplace=True)
+        all_data.append(df_std['value'])
         labels.append('Standard Deviation')
         color_choices.append('lightyellow')
 
@@ -701,17 +701,17 @@ def plot_pdf(ts_df: pd.DataFrame):
     This function generates a Probability Density Function (PDF) plot for a given time series DataFrame.
 
     Parameters:
-    :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+    :param ts_df: A pandas DataFrame that contains a column 'value'. This column should represent the time series
                   data for which the PDF will be calculated and plotted.
 
     Returns:
     :return: This function does not return anything. Instead, it creates a histogram and overlaid kernel density
-             estimate plot using seaborn's histplot function. The x-axis of the plot represents the 'Value' column
+             estimate plot using seaborn's histplot function. The x-axis of the plot represents the 'value' column
              from the input DataFrame, and the y-axis represents the estimated probability density. The title of
              the plot is 'Probability Density Function (PDF)'.
     """
     time_series_df = ts_df.dropna()
-    sns.histplot(time_series_df['Value'], kde=True)
+    sns.histplot(time_series_df['value'], kde=True)
     plt.title('Probability Density Function (PDF)')
     plt.show()
 
@@ -721,17 +721,17 @@ def plot_cdf(ts_df: pd.DataFrame):
     This function generates a Cumulative Distribution Function (CDF) plot for a given time series DataFrame.
 
     Parameters:
-    :param ts_df: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+    :param ts_df: A pandas DataFrame that contains a column 'value'. This column should represent the time series
                   data for which the CDF will be calculated and plotted.
 
     Returns:
     :return: This function does not return anything. Instead, it creates a step plot using seaborn's histplot function,
-             with the cumulative option set to True. The x-axis of the plot represents the 'Value' column from the
+             with the cumulative option set to True. The x-axis of the plot represents the 'value' column from the
              input DataFrame, and the y-axis represents the cumulative frequency. The title of the plot is
              'Cumulative Distribution Function (CDF)'.
     """
     time_series_df = ts_df.dropna()
-    sns.histplot(time_series_df['Value'], cumulative=True, element="step", fill=False)
+    sns.histplot(time_series_df['value'], cumulative=True, element="step", fill=False)
     plt.title('Cumulative Distribution Function (CDF)')
     plt.show()
 
@@ -740,8 +740,8 @@ def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFram
     threshold = ratio_threshold_value
 
     # Here we calculate the ratio of data outside the threshold
-    num_data_points = len(ts_df['Value'])
-    num_outside_threshold = sum(abs(ts_df['Value']) > threshold)
+    num_data_points = len(ts_df['value'])
+    num_outside_threshold = sum(abs(ts_df['value']) > threshold)
 
     ratio_outside_threshold = num_outside_threshold / num_data_points
 
@@ -754,14 +754,14 @@ def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFram
 
 #     print("Plotting data with threshold band . . .")
 #     threshold = ratio_threshold.value
-# fig, ax = plt.subplots() ax.plot(time_series_df.index, time_series_df['Value'], label='Data', color='tab:blue')
-# ax.fill_between(time_series_df.index, threshold, time_series_df['Value'].where(time_series_df['Value']>=threshold),
-# where=(time_series_df['Value']>=threshold), color='tab:red', alpha=0.2, label='Above Threshold') ax.fill_between(
-# time_series_df.index, -threshold, time_series_df['Value'].where(time_series_df['Value']<=-threshold),
-# where=(time_series_df['Value']<=-threshold), color='tab:red', alpha=0.2) ax.axhline(threshold, color='tab:green',
+# fig, ax = plt.subplots() ax.plot(time_series_df.index, time_series_df['value'], label='Data', color='tab:blue')
+# ax.fill_between(time_series_df.index, threshold, time_series_df['value'].where(time_series_df['value']>=threshold),
+# where=(time_series_df['value']>=threshold), color='tab:red', alpha=0.2, label='Above Threshold') ax.fill_between(
+# time_series_df.index, -threshold, time_series_df['value'].where(time_series_df['value']<=-threshold),
+# where=(time_series_df['value']<=-threshold), color='tab:red', alpha=0.2) ax.axhline(threshold, color='tab:green',
 # linestyle='--', label='Threshold') ax.axhline(-threshold, color='tab:green', linestyle='--')
 #     ax.set_title('Data with Threshold Band')
-#     ax.set_ylabel('Value')
+#     ax.set_ylabel('value')
 #     ax.legend(loc='upper right')
 #     plt.show()
 
@@ -773,7 +773,7 @@ def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
     This function calculates the Pearson Correlation Coefficient between two time series.
 
     Parameters:
-    time_series: A pandas DataFrame that contains a column 'Value'. This column should represent the time series
+    time_series: A pandas DataFrame that contains a column 'value'. This column should represent the time series
                  data for which the Pearson Correlation Coefficient will be calculated.
     correlations: A tuple of two elements, each representing the metric to be used for correlation calculation.
 
@@ -786,17 +786,17 @@ def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
     # The duplicated function returns a boolean Series denoting duplicate index values, and
     # the ~ operator is used to invert the boolean values. This way we're keeping only the
     # rows where the index is not duplicated
-    ts_metric_one = time_series[time_series['Event'] == metric_one]
+    ts_metric_one = time_series[time_series['event'] == metric_one]
     ts_metric_one = ts_metric_one[~ts_metric_one.index.duplicated(keep='first')]
 
-    ts_metric_two = time_series[time_series['Event'] == metric_two]
+    ts_metric_two = time_series[time_series['event'] == metric_two]
     ts_metric_two = ts_metric_two[~ts_metric_two.index.duplicated(keep='first')]
 
     # find common timestamps using index intersection
     common_timestamps = ts_metric_one.index.intersection(ts_metric_two.index)
 
-    metric_one_values = ts_metric_one.loc[common_timestamps, 'Value'].values
-    metric_two_values = ts_metric_two.loc[common_timestamps, 'Value'].values
+    metric_one_values = ts_metric_one.loc[common_timestamps, 'value'].values
+    metric_two_values = ts_metric_two.loc[common_timestamps, 'value'].values
 
     # Check if both lists have same length before calculating correlation
     if len(metric_one_values) == len(metric_two_values):
