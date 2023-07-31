@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 import psycopg2.extras
+from psycopg2 import extras, Error
 from IPython.display import display, FileLink, HTML
 from ipywidgets import widgets
 from datetime import datetime
@@ -87,76 +88,105 @@ def get_database_connection() -> Optional[psycopg2.extensions.connection]:
 
 
 # -------------- CELL 3 --------------
-def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
+def get_time_series_from_database(start_time, end_time) -> Optional[pd.DataFrame]:
     """
-    This function should read the data from the database.
+    This function retrieves data from a database within a specified time range and returns it as a pandas DataFrame.
+
+    The function first establishes a connection to the database, then uses a SQL query to select all data from the
+    'public.host_data' table where the 'time' is within the provided start and end times.
 
     :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
-    :return: A pandas DataFrame containing the data.
+    :return: A pandas DataFrame containing the data or None if there's an error during database operations.
     """
-    conn = get_database_connection()
+    try:
+        conn = get_database_connection()
+        if conn is None:
+            raise ValueError('Database connection could not be established.')
 
-    # Create a cursor object
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        # Create a cursor object
+        cur = conn.cursor(cursor_factory=extras.DictCursor)
 
-    # Define the SQL query
-    sql_query = """
-            SELECT *
-            FROM public.host_data
-            WHERE time >= %s AND time <= %s
-        """
+        # Define the SQL query
+        sql_query = """
+                SELECT *
+                FROM public.host_data
+                WHERE time >= %s AND time <= %s
+            """
 
-    # Execute the SQL query
-    cur.execute(sql_query, (start_time, end_time))
+        # Execute the SQL query
+        cur.execute(sql_query, (start_time, end_time))
 
-    # Fetch all rows from the last executed SQL query
-    rows = cur.fetchall()
+        # Fetch all rows from the last executed SQL query
+        rows = cur.fetchall()
 
-    # Convert the results into a pandas DataFrame
-    df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
+        # Convert the results into a pandas DataFrame
+        df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
 
-    # Close the cursor and connection
-    cur.close()
-    conn.close()
+        return df
 
-    return df
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"An error occurred: {error}")
+        return None
+
+    finally:
+        # Ensure resources are released properly even if an error occurred
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
 
 
-def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
+def get_account_log_from_database(start_time, end_time) -> Optional[pd.DataFrame]:
     """
-    This function should get the account data from the database.
+    Retrieves account data from a database within a specified time range and returns it as a pandas DataFrame.
+
+    The function first establishes a connection to the database, then uses a SQL query to select all data from the
+    'public.job_data' table where the 'start_time' and 'end_time' are within the provided start and end times.
 
     :param start_time: The start time in the format of '%Y-%m-%d %H:%M:%S'.
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
-    :return: A pandas DataFrame containing the data.
+    :return: A pandas DataFrame containing the data or None if there's an error during database operations.
     """
-    conn = get_database_connection()
+    conn = None
+    cur = None
 
-    # Create a cursor object
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    try:
+        conn = get_database_connection()
+        if conn is None:
+            raise ValueError('Database connection could not be established.')
 
-    # Define the SQL query
-    sql_query = """
-            SELECT *
-            FROM public.job_data
-            WHERE start_time >= %s AND end_time <= %s
-        """
+        # Create a cursor object
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Execute the SQL query
-    cur.execute(sql_query, (start_time, end_time))
+        # Define the SQL query
+        sql_query = """
+                SELECT *
+                FROM public.job_data
+                WHERE start_time >= %s AND end_time <= %s
+            """
 
-    # Fetch all rows from the last executed SQL query
-    rows = cur.fetchall()
+        # Execute the SQL query
+        cur.execute(sql_query, (start_time, end_time))
 
-    # Convert the results into a pandas DataFrame
-    df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
+        # Fetch all rows from the last executed SQL query
+        rows = cur.fetchall()
 
-    # Close the cursor and connection
-    cur.close()
-    conn.close()
+        # Convert the results into a pandas DataFrame
+        df = pd.DataFrame(rows, columns=[desc[0] for desc in cur.description])
 
-    return df
+        return df
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"An error occurred: {error}")
+        return None
+
+    finally:
+        # Ensure resources are released properly even if an error occurred
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
 
 
 # -------------- CELL 3 --------------
