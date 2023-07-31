@@ -13,6 +13,9 @@ import re
 from scipy.stats import pearsonr
 from matplotlib import pyplot as plt
 import seaborn as sns
+import zipfile
+from typing import Optional
+from psycopg2 import OperationalError
 
 
 # ---------- UTILITY FUNCTIONS ------------
@@ -50,6 +53,39 @@ def extract_month_year(date_string: str) -> tuple:
     return month, year
 
 
+def get_database_connection() -> Optional[psycopg2.extensions.connection]:
+    """
+    Establish a connection to a PostgreSQL database using credentials stored in environment variables.
+
+    This function retrieves database connection information from the environment variables
+    'DBHOST', 'DBPW', 'DBNAME', and 'DBUSER', and attempts to establish a connection to the
+    specified database. If any part of this process fails (e.g., a required environment
+    variable is missing or the database connection cannot be established), an error message
+    is printed and the function returns None.
+
+    Returns:
+    A psycopg2.extensions.connection object if the connection is successfully established;
+    otherwise, None.
+    """
+    try:
+        # Get the database credentials from the environment variables
+        db_host = os.getenv('DBHOST')
+        db_password = os.getenv('DBPW')
+        db_name = os.getenv('DBNAME')
+        db_user = os.getenv('DBUSER')
+
+        if not all([db_host, db_password, db_name, db_user]):
+            raise ValueError('One or more database credentials are missing from the environment variables.')
+
+        # Establish a connection to the database
+        connection = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+        return connection
+
+    except (Exception, OperationalError) as error:
+        print(f"An error occurred: {error}")
+        return None
+
+
 # -------------- CELL 3 --------------
 def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     """
@@ -59,14 +95,7 @@ def get_time_series_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    # Get the database credentials from the environment variables
-    db_host = os.getenv('DBHOST')
-    db_password = os.getenv('DBPW')
-    db_name = os.getenv('DBNAME')
-    db_user = os.getenv('DBUSER')
-
-    # Establish a connection to the database
-    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    conn = get_database_connection()
 
     # Create a cursor object
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -102,14 +131,7 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
     :param end_time: The end time in the format of '%Y-%m-%d %H:%M:%S'.
     :return: A pandas DataFrame containing the data.
     """
-    # Get the database credentials from the environment variables
-    db_host = os.getenv('DBHOST')
-    db_password = os.getenv('DBPW')
-    db_name = os.getenv('DBNAME')
-    db_user = os.getenv('DBUSER')
-
-    # Establish a connection to the database
-    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user, password=db_password)
+    conn = get_database_connection()
 
     # Create a cursor object
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -140,6 +162,31 @@ def get_account_log_from_database(start_time, end_time) -> pd.DataFrame:
 # -------------- CELL 3 --------------
 
 def add_interval_column(ending_time: str, time_series: pd.DataFrame, account_log: pd) -> pd.DataFrame:
+    """
+    Adds an interval column to a merged DataFrame based on the timestamps of the event series. It also ensures that
+    intervals are correctly calculated across different jobs and hosts. The function assumes that the account_log
+    DataFrame has an 'end_time' column and both account_log and time_series DataFrames have a 'jid' column.
+
+    This function converts the 'end_time' column in the account_log DataFrame and the 'time' column in the time_series
+    DataFrame to timezone-naive datetime if necessary. It also converts the ending_time argument to timezone-naive
+    datetime.
+
+    Parameters:
+    :param ending_time: A string representing the ending time to be compared with timestamps in the DataFrame.
+                        The string should be in a format that pandas can convert into a datetime object.
+
+    :param time_series: A pandas DataFrame containing time series data. This DataFrame should at least contain 'jid',
+                        'host', 'event', and 'time' columns.
+
+    :param account_log: A pandas DataFrame containing account logs. This DataFrame should at least contain 'jid' and
+                        'end_time' columns. 'end_time' will be converted into datetime format within the function.
+
+    Returns:
+    :return: A pandas DataFrame that is the result of merging time_series and account_log DataFrames, dropping
+             duplicates based on 'jid', 'host', 'event' and adding an 'interval' column. This DataFrame also
+             contains the columns 'jid', 'host', 'event', 'value', 'unit', 'time', 'interval'. The 'interval'
+             column represents the time difference between consecutive events, considering 'jid', 'host', and 'event'.
+    """
     # Convert the 'end_time' column to datetime
     account_log['end_time'] = pd.to_datetime(account_log['end_time'])
     # Convert the 'end_time' column to timezone-naive if necessary
@@ -397,59 +444,87 @@ def create_csv_download_link(df, title=None, filename="data.csv"):
     """
     Generates a link to download a DataFrame as a CSV file.
 
-    This function converts a DataFrame to a CSV format, encodes it in base64, and embeds it into an HTML link that enables users to download the data.
+    This function converts a DataFrame to a CSV format, compresses it into a zip file, encodes it in base64,
+    and embeds it into an HTML link that enables users to download the data.
 
     Parameters:
     :param df: A pandas DataFrame that is to be downloaded.
     :param title: The text to display for the download link. Defaults to None.
     :param filename: The name to use for the downloaded file. Defaults to "data.csv".
 
-    Returns:
-    :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython environment (like Jupyter), it manifests as a clickable download link.
+    Returns: :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython
+    environment (like Jupyter), it manifests as a clickable download link.
     """
-    csv = df.to_csv()
-    b64 = base64.b64encode(csv.encode())
-    payload = b64.decode()
-    html = '<a download="{filename}" href="data:text/csv;base64,{payload}" target="_blank">{title}</a>'
-    html = html.format(payload=payload, title=title, filename=filename)
-    return HTML(html)
+    try:
+        csv = df.to_csv(index=False)
+
+        # compress the file
+        compression = zipfile.ZIP_DEFLATED
+        csv_bytes = csv.encode('utf-8')
+        with io.BytesIO() as buf:
+            with zipfile.ZipFile(buf, mode='w') as z:
+                z.writestr(filename, csv_bytes, compress_type=compression)
+            b64 = base64.b64encode(buf.getvalue())
+
+        payload = b64.decode()
+        # Change download filename to .zip
+        zip_filename = filename.rsplit('.', 1)[0] + '.zip'
+        html = '<a download="{filename}" href="data:application/zip;base64,{payload}" target="_blank">{title}</a>'
+        html = html.format(payload=payload, title=title, filename=zip_filename)
+        return HTML(html)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 def create_excel_download_link(df, title=None, filename="data.xlsx"):
     """
-    Generates a link to download a DataFrame as an Excel (.xlsx) file.
+    Generates a link to download a DataFrame as a zipped Excel (.xlsx) file.
 
-    This function converts a DataFrame to an Excel file format, encodes it in base64, and embeds it into an HTML link that enables users to download the data.
+    This function converts a DataFrame to an Excel file format, compresses it into a zip file, encodes it in base64,
+    and embeds it into an HTML link that enables users to download the data.
 
     Parameters:
     :param df: A pandas DataFrame that is to be downloaded.
     :param title: The text to display for the download link. If not provided, the link will not have a descriptive text.
     :param filename: The name to use for the downloaded file. Defaults to "data.xlsx".
 
-    Returns:
-    :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython environment (like Jupyter), it manifests as a clickable download link.
+    Returns: :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython
+    environment (like Jupyter), it manifests as a clickable download link.
     """
-    df_copy = df.copy()
+    try:
+        df_copy = df.copy()
 
-    # If df has datetime columns, convert them to timezone-naive
-    for col in df.columns:
-        if pd.api.types.is_datetime64tz_dtype(df[col]):
-            df_copy[col] = df[col].dt.tz_convert(None)
+        # If df has datetime columns, convert them to timezone-naive
+        for col in df.columns:
+            if pd.api.types.is_datetime64tz_dtype(df[col]):
+                df_copy[col] = df[col].dt.tz_convert(None)
 
-    output = io.BytesIO()
-    # Write the DataFrame to the BytesIO object as an Excel file
-    df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
-    # Get the Excel file data
-    excel_data = output.getvalue()
-    # Encode the Excel file data to base64
-    b64 = base64.b64encode(excel_data)
-    # Create the payload
-    payload = b64.decode()
-    # Create the HTML link
-    html = '<a download="{filename}" href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{payload}" target="_blank">{title}</a>'
-    html = html.format(payload=payload, title=title, filename=filename)
-    # Return the HTML link
-    return HTML(html)
+        output = io.BytesIO()
+        # Write the DataFrame to the BytesIO object as an Excel file
+        df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
+        # Get the Excel file data
+        excel_data = output.getvalue()
+
+        # Compress the Excel file
+        compression = zipfile.ZIP_DEFLATED
+        with io.BytesIO() as buf:
+            with zipfile.ZipFile(buf, mode='w') as z:
+                z.writestr(filename, excel_data, compress_type=compression)
+            b64 = base64.b64encode(buf.getvalue())
+
+        # Create the payload
+        payload = b64.decode()
+        # Change download filename to .zip
+        zip_filename = filename.rsplit('.', 1)[0] + '.zip'
+        # Create the HTML link
+        html = '<a download="{filename}" href="data:application/zip;base64,{payload}" target="_blank">{title}</a>'
+        html = html.format(payload=payload, title=title, filename=zip_filename)
+        # Return the HTML link
+        return HTML(html)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 # -------------- CELL 6 --------------
