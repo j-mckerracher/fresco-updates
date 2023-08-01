@@ -109,7 +109,7 @@ def get_time_series_from_database(start_time, end_time) -> Optional[pd.DataFrame
 
         # Define the SQL query
         sql_query = """
-                SELECT *
+                SELECT jid, host, event, value, unit, time 
                 FROM public.host_data
                 WHERE time >= %s AND time <= %s
             """
@@ -559,9 +559,9 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
 
 # -------------- CELL 6 --------------
 # Aryamaan
-def get_average(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
+def get_mean(time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
     """
-    Calculates the median of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
+    Calculates the mean of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
     basis.
 
     Parameters:
