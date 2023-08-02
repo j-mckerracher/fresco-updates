@@ -694,13 +694,12 @@ def plot_choices(stats_value, rolling: bool, df_avg: pd.DataFrame, df_mean: pd.D
                 df_std['value'].plot(label='Std Dev', color='k')
 
 
-def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median: pd.DataFrame):
+def plot_box_and_whisker(df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median: pd.DataFrame):
     """
-    This function generates a box and whisker plot for various statistics (average, mean, median, and standard deviation)
+    This function generates a box and whisker plot for various statistics (mean, median, and standard deviation)
     of a time series data, as contained within provided DataFrames.
 
     Parameters:
-    :param df_avg: A pandas DataFrame that contains a column 'value' with the average values of the time series data.
     :param df_mean: A pandas DataFrame that contains a column 'value' with the mean values of the time series data.
     :param df_std: A pandas DataFrame that contains a column 'value' with the standard deviation values of the time series data.
     :param df_median: A pandas DataFrame that contains a column 'value' with the median values of the time series data.
@@ -711,15 +710,14 @@ def plot_box_and_whisker(df_avg: pd.DataFrame, df_mean: pd.DataFrame, df_std: pd
              upper quartile values of the data, with a line at the median. The whiskers extend from the box to show
              the range of the data. Outlier points are those past the end of the whiskers.
     """
-    print("Generating box and whisker plot. . .")
     # Collect statistics into a list of pandas Series or numpy arrays
     all_data = []
     labels = []
     color_choices = []
-    if not df_avg.empty:
-        df_avg.dropna(subset=['value'], inplace=True)
-        all_data.append(df_avg['value'])
-        labels.append('Average')
+    if not df_mean.empty:
+        df_mean.dropna(subset=['value'], inplace=True)
+        all_data.append(df_mean['value'])
+        labels.append('Mean')
         color_choices.append('pink')
     if not df_median.empty:
         df_median.dropna(subset=['value'], inplace=True)
