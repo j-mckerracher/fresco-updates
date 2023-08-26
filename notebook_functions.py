@@ -714,17 +714,17 @@ def plot_box_and_whisker(df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median:
     all_data = []
     labels = []
     color_choices = []
-    if df_mean is not None:
+    if not df_mean.empty:
         df_mean.dropna(subset=['value'], inplace=True)
         all_data.append(df_mean['value'])
         labels.append('Mean')
         color_choices.append('pink')
-    if df_median is not None:
+    if not df_median.empty:
         df_median.dropna(subset=['value'], inplace=True)
         all_data.append(df_median['value'])
         labels.append('Median')
         color_choices.append('lightgreen')
-    if df_std is not None:
+    if not df_std.empty:
         df_std.dropna(subset=['value'], inplace=True)
         all_data.append(df_std['value'])
         labels.append('Standard Deviation')
@@ -947,17 +947,3 @@ def on_download_button_clicked(b, widget_value):
             display(link)
     else:
         print("No file selected for download.")
-
-
-def remove_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Removes specific columns ('type', 'diff', 'arc') from the given dataframe.
-
-    Parameters:
-    :param df: A pandas DataFrame
-
-    Returns:
-    :return: A pandas DataFrame with the specified columns removed.
-    """
-    columns_to_remove = ['type', 'diff', 'arc']
-    return df.drop(columns=columns_to_remove, errors='ignore')
