@@ -886,14 +886,21 @@ def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
     """
     metric_one, metric_two = correlations
 
-    # The duplicated function returns a boolean Series denoting duplicate index values, and
-    # the ~ operator is used to invert the boolean values. This way we're keeping only the
-    # rows where the index is not duplicated
     ts_metric_one = time_series[time_series['event'] == metric_one]
     ts_metric_one = ts_metric_one[~ts_metric_one.index.duplicated(keep='first')]
 
     ts_metric_two = time_series[time_series['event'] == metric_two]
     ts_metric_two = ts_metric_two[~ts_metric_two.index.duplicated(keep='first')]
+
+    insufficient_data = []
+    if len(ts_metric_one) < 2:
+        insufficient_data.append(metric_one)
+    if len(ts_metric_two) < 2:
+        insufficient_data.append(metric_two)
+
+    if insufficient_data:
+        print(f"Insufficient data for {', '.join(insufficient_data)}")
+        return
 
     # find common timestamps using index intersection
     common_timestamps = ts_metric_one.index.intersection(ts_metric_two.index)
