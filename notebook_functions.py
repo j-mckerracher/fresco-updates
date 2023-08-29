@@ -113,6 +113,123 @@ def execute_sql_query(query, incoming_df, params=None):
         print(f"An error occurred: {e}")
 
 
+def validate_jid(value):
+    """
+    Validates the provided job id (jid) value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the job id that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the job id.
+             Returns None if the value is valid.
+    """
+
+    jobs = value.split(',')
+    for job in jobs:
+        job = job.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^JOB\d+$', job):
+            return "Error: For 'jid', value must be a comma-separated list of strings starting with 'JOB' followed by one or more digits."
+    return None
+
+
+def validate_numeric_columns(column, value):
+    """
+    Validates the provided value for numeric columns. The function checks if the value can be converted to a float.
+
+    Parameters:
+    :param column: A string representing the column name for which the value needs to be validated. Possible values
+                   include 'ncores', 'ngpus', 'nhosts', 'timelimit'.
+    :param value: A string containing the value that needs to be validated based on the column criteria.
+
+    Returns:
+    :return: An error message string if the value cannot be converted to a float.
+             Returns None if the value is valid.
+    """
+    try:
+        float(value)  # Check if the value can be converted to a float (including integers and decimals)
+    except ValueError:
+        return f"Error: For '{column}', value must be a number (including decimals)."
+    return None
+
+
+def validate_account(value):
+    """
+    Validates the provided account value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the account that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the account.
+             Returns None if the value is valid.
+    """
+    groups = value.split(',')
+    for group in groups:
+        group = group.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^GROUP\d+$', group):
+            return "Error: For 'account', value must be a comma-separated list of strings starting with 'GROUP' followed by one or more digits."
+    return None
+
+
+def validate_username(value):
+    """
+    Validates the provided username value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the username that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the username.
+             Returns None if the value is valid.
+    """
+
+    users = value.split(',')
+    for user in users:
+        user = user.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^USER\d+$', user):
+            return "Error: For 'username', value must be a comma-separated list of strings starting with 'USER' followed by one or more digits."
+    return None
+
+
+def validate_host_list(value):
+    """
+    Validates the provided host list value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the host list that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the host list.
+             Returns None if the value is valid.
+    """
+    hosts = value.split(',')
+    for host in hosts:
+        host = host.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^NODE\d+$', host):
+            return "Error: For 'host_list', value must be a comma-separated list of strings starting with 'NODE' followed by one or more digits."
+    return None
+
+
+def validate_jobname(value):
+    """
+    Validates the provided jobname value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the jobname that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the jobname.
+             Returns None if the value is valid.
+    """
+    jobs = value.split(',')
+    for job in jobs:
+        job = job.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^JOBNAME\d+$', job):
+            return "Error: For 'host_list', value must be a comma-separated list of strings starting with 'NODE' followed by one or more digits."
+    return None
+
+
 def validate_condition_jobs(column, value):
     """
     Validates the provided value based on the specified column criteria. The function checks if the value for a
@@ -130,50 +247,17 @@ def validate_condition_jobs(column, value):
     """
     error_message = None
     if column == 'jid':
-        jobs = value.split(',')
-        for job in jobs:
-            job = job.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^JOB\d+$', job):
-                error_message = "Error: For 'jid', value must be a comma-separated list of strings starting with " \
-                                "'JOB' followed by one or more digits."
-                break
+        error_message = validate_jid(value)
     elif column in ['ncores', 'ngpus', 'nhosts', 'timelimit']:
-        try:
-            float(value)  # Check if the value can be converted to a float (including integers and decimals)
-        except ValueError:
-            error_message = f"Error: For '{column}', value must be a number (including decimals)."
+        error_message = validate_numeric_columns(column, value)
     elif column == 'account':
-        groups = value.split(',')
-        for group in groups:
-            group = group.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^GROUP\d+$', group):
-                error_message = "Error: For 'account', value must be a comma-separated list of strings starting with " \
-                                "'GROUP' followed by one or more digits."
-                break
+        error_message = validate_account(value)
     elif column == 'username':
-        users = value.split(',')
-        for user in users:
-            user = user.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^USER\d+$', user):
-                error_message = "Error: For 'username', value must be a comma-separated list of strings starting with " \
-                                "'USER' followed by one or more digits."
-                break
+        error_message = validate_username(value)
     elif column == 'host_list':
-        hosts = value.split(',')
-        for host in hosts:
-            host = host.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^NODE\d+$', host):
-                error_message = "Error: For 'host_list', value must be a comma-separated list of strings starting " \
-                                "with 'NODE' followed by one or more digits."
-                break
+        error_message = validate_host_list(value)
     elif column == 'jobname':
-        jobs = value.split(',')
-        for job in jobs:
-            job = job.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^JOBNAME\d+$', job):
-                error_message = "Error: For 'host_list', value must be a comma-separated list of strings starting " \
-                                "with 'NODE' followed by one or more digits."
-                break
+        error_message = validate_jobname(value)
     return error_message
 
 
@@ -193,36 +277,105 @@ def validate_condition_hosts(column, value):
              Returns None if the value is valid.
     """
     error_message = None
-    if column == 'event' and value not in ['cpuuser', 'block', 'memused', 'memused_minus_diskcache', 'gpu_usage',
-                                           'nfs']:
-        error_message = "Error: For 'event', value must be one of: cpuuser, block, memused, memused_minus_diskcache, " \
-                        "gpu_usage, nfs."
+    if column == 'event':
+        error_message = validate_event(value)
     elif column == 'host':
-        hosts = value.split(',')
-        for host in hosts:
-            host = host.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^NODE\d+$', host):
-                error_message = "Error: For 'host', value must be a comma-separated list of strings starting with " \
-                                "'NODE' followed by one or more digits."
-                break
+        error_message = validate_host(value)
     elif column == 'jid':
-        jobs = value.split(',')
-        for job in jobs:
-            job = job.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^JOB\d+$', job):
-                error_message = "Error: For 'jid', value must be a comma-separated list of strings starting with " \
-                                "'JOB' followed by one or more digits."
-                break
-    elif column == 'unit' and value not in ['CPU %', 'GPU %', 'GB:memused', 'GB:memused_minus_diskcache', 'GB/s',
-                                            'MB/s']:
-        error_message = "Error: For 'unit', value must be one of: 'CPU %', 'GPU %', 'GB:memused', " \
-                        "'GB:memused_minus_diskcache', 'GB/s', 'MB/s'."
+        error_message = validate_jid(value)
+    elif column == 'unit':
+        error_message = validate_unit(value)
     elif column == 'value':
-        try:
-            float(value)
-        except ValueError:
-            error_message = "Error: For 'value', the value must be a number."
+        error_message = validate_value(value)
     return error_message
+
+
+def validate_event(value):
+    """
+    Validates the provided event value. The function checks if the value is in the predefined list.
+
+    Parameters:
+    :param value: A string containing the event that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value is not in the predefined list for the event.
+             Returns None if the value is valid.
+    """
+    if value not in ['cpuuser', 'block', 'memused', 'memused_minus_diskcache', 'gpu_usage', 'nfs']:
+        return "Error: For 'event', value must be one of: cpuuser, block, memused, memused_minus_diskcache, gpu_usage, nfs."
+    return None
+
+
+def validate_host(value):
+    """
+    Validates the provided host value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the host that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the host.
+             Returns None if the value is valid.
+    """
+    hosts = value.split(',')
+    for host in hosts:
+        host = host.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^NODE\d+$', host):
+            return "Error: For 'host', value must be a comma-separated list of strings starting with 'NODE' followed by one or more digits."
+    return None
+
+
+def validate_unit(value):
+    """
+    Validates the provided unit value. The function checks if the value is in the predefined list.
+
+    Parameters:
+    :param value: A string containing the unit that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value is not in the predefined list for the unit.
+             Returns None if the value is valid.
+    """
+    if value not in ['CPU %', 'GPU %', 'GB:memused', 'GB:memused_minus_diskcache', 'GB/s', 'MB/s']:
+        return "Error: For 'unit', value must be one of: 'CPU %', 'GPU %', 'GB:memused', 'GB:memused_minus_diskcache', 'GB/s', 'MB/s'."
+    return None
+
+
+def validate_value(value):
+    """
+    Validates the provided value for numeric columns. The function checks if the value can be converted to a float.
+
+    Parameters:
+    :param value: A string containing the value that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value cannot be converted to a float.
+             Returns None if the value is valid.
+    """
+    try:
+        float(value)
+    except ValueError:
+        return "Error: For 'value', the value must be a number."
+    return None
+
+
+def validate_jid(value):
+    """
+    Validates the provided job id (jid) value. The function checks if the value adheres to the predefined format.
+
+    Parameters:
+    :param value: A string containing the job id that needs to be validated.
+
+    Returns:
+    :return: An error message string if the value does not adhere to the predefined format for the job id.
+             Returns None if the value is valid.
+    """
+    jobs = value.split(',')
+    for job in jobs:
+        job = job.strip().upper()  # Remove any leading or trailing whitespace
+        if not re.match(r'^JOB\d+$', job):
+            return "Error: For 'jid', value must be a comma-separated list of strings starting with 'JOB' followed by one or more digits."
+    return None
 
 
 # Construct SQL query
