@@ -35,4 +35,4 @@ Saurabh Bagchi, Todd Evans, Rakesh Kumar, Rajesh Kalyanam, Stephen Harrell, Caro
 - Dr. Amiya Maji: [amaji@purdue.edu](mailto:amaji@purdue.edu)
 - Dr. Carol Song: [cxsong@purdue.edu](mailto:cxsong@purdue.edu)
 - Dr. Saurabh Bagchi: [sbagchi@purdue.edu](mailto:sbagchi@purdue.edu)
-- Joshua McKerracher [jmckerra@purdue.edu](mailto:jmckerra@purdue.edu)
+- Joshua McKerracher: [jmckerra@purdue.edu](mailto:jmckerra@purdue.edu)
