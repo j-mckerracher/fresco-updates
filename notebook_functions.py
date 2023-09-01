@@ -1,10 +1,8 @@
-import base64
 import io
 import os
 import pandas as pd
 import psycopg2
 import psycopg2.extras
-from IPython.display import HTML
 from datetime import datetime
 import re
 from scipy.stats import pearsonr
@@ -791,58 +789,46 @@ def calculate_and_plot_correlation(time_series: pd.DataFrame, correlations):
         return {"Correlation": correlation, "P-value": p_val}
 
 
-def create_csv_download_link(df, title=None, filename="data.csv"):
+def create_csv_download_file(df, filename="data.csv"):
     """
-    Generates a link to download a DataFrame as a CSV file.
-
-    This function converts a DataFrame to a CSV format, compresses it into a zip file, encodes it in base64,
-    and embeds it into an HTML link that enables users to download the data.
+    Saves a DataFrame as a zipped CSV file to the current working directory.
 
     Parameters:
-    :param df: A pandas DataFrame that is to be downloaded.
-    :param title: The text to display for the download link. Defaults to None.
-    :param filename: The name to use for the downloaded file. Defaults to "data.csv".
+    :param df: A pandas DataFrame that is to be saved.
+    :param filename: The name to use for the saved file inside the zip. Defaults to "data.csv".
 
-    Returns: :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython
-    environment (like Jupyter), it manifests as a clickable download link.
+    Returns:
+    :return: A message indicating the file's location or an error message.
     """
     try:
-        csv = df.to_csv(index=False)
+        # Convert DataFrame to CSV string
+        csv_str = df.to_csv(index=False)
+        csv_bytes = csv_str.encode('utf-8')
 
-        # compress the file
-        compression = zipfile.ZIP_DEFLATED
-        csv_bytes = csv.encode('utf-8')
-        with io.BytesIO() as buf:
-            with zipfile.ZipFile(buf, mode='w') as z:
-                z.writestr(filename, csv_bytes, compress_type=compression)
-            b64 = base64.b64encode(buf.getvalue())
-
-        payload = b64.decode()
-        # Change download filename to .zip
+        # Define zip filename
         zip_filename = filename.rsplit('.', 1)[0] + '.zip'
-        html = '<a download="{filename}" href="data:application/zip;base64,{payload}" target="_blank">{title}</a>'
-        html = html.format(payload=payload, title=title, filename=zip_filename)
-        return HTML(html)
+        zip_path = os.path.join(os.getcwd(), zip_filename)
+
+        # Write the CSV data to a zip file
+        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr(filename, csv_bytes)
+
+        return f"File saved to {zip_path}"
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
+        return f"An error occurred: {e}"
 
 
-def create_excel_download_link(df, title=None, filename="data.xlsx"):
+def create_excel_download_file(df, filename="data.xlsx"):
     """
-    Generates a link to download a DataFrame as a zipped Excel (.xlsx) file.
+     Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
 
-    This function converts a DataFrame to an Excel file format, compresses it into a zip file, encodes it in base64,
-    and embeds it into an HTML link that enables users to download the data.
+     Parameters:
+     :param df: A pandas DataFrame that is to be saved.
+     :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
 
-    Parameters:
-    :param df: A pandas DataFrame that is to be downloaded.
-    :param title: The text to display for the download link. If not provided, the link will not have a descriptive text.
-    :param filename: The name to use for the downloaded file. Defaults to "data.xlsx".
-
-    Returns: :return: An IPython.core.display.HTML object that contains an HTML string. When displayed in an IPython
-    environment (like Jupyter), it manifests as a clickable download link.
-    """
+     Returns:
+     :return: A message indicating the file's location or an error message.
+     """
     try:
         df_copy = df.copy()
 
@@ -851,31 +837,22 @@ def create_excel_download_link(df, title=None, filename="data.xlsx"):
             if pd.api.types.is_datetime64tz_dtype(df[col]):
                 df_copy[col] = df[col].dt.tz_convert(None)
 
-        output = io.BytesIO()
-        # Write the DataFrame to the BytesIO object as an Excel file
-        df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
-        # Get the Excel file data
-        excel_data = output.getvalue()
+        # Write DataFrame to Excel in memory
+        with io.BytesIO() as output:
+            df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
+            excel_data = output.getvalue()
 
-        # Compress the Excel file
-        compression = zipfile.ZIP_DEFLATED
-        with io.BytesIO() as buf:
-            with zipfile.ZipFile(buf, mode='w') as z:
-                z.writestr(filename, excel_data, compress_type=compression)
-            b64 = base64.b64encode(buf.getvalue())
-
-        # Create the payload
-        payload = b64.decode()
-        # Change download filename to .zip
+        # Define zip filename
         zip_filename = filename.rsplit('.', 1)[0] + '.zip'
-        # Create the HTML link
-        html = '<a download="{filename}" href="data:application/zip;base64,{payload}" target="_blank">{title}</a>'
-        html = html.format(payload=payload, title=title, filename=zip_filename)
-        # Return the HTML link
-        return HTML(html)
+        zip_path = os.path.join(os.getcwd(), zip_filename)
+
+        # Write the Excel data to a zip file
+        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr(filename, excel_data)
+
+        return f"File saved to {zip_path}"
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
+        return f"An error occurred: {e}"
 
 
 def remove_columns(df: pd.DataFrame) -> pd.DataFrame:
