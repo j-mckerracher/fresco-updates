@@ -1,92 +1,38 @@
+# FRESCO Job Failure and Performance Data Repository
 
-## Project Timeline
-This timeline will serve a reference for all the work required to finish the FRESCO Analytics Notebook. It contains all
-the work that needs to be done (with links to the issues on Github), along with a tentative plan of who will complete 
-each item. It leaves an abundance of extra time at the end of the project to account for unforeseeable issues we'll likely
-encounter along the way.
+## Notebook Access
+https://www.jupyter.fresco-hpc.org/
 
-### 6/11 - 6/17
-Aryamaan
-1. [Setting up JupyterHub on RCAC server?](https://github.com/j-mckerracher/fresco-updates/issues/22)
-2. Redo cell 1?
-3. [Cell 2: Implement the get_data_files_directory function](https://github.com/j-mckerracher/fresco-updates/issues/2)
+## Version 3.0
 
-Josh
-1. [Finishing touches on the notebook rough draft](https://github.com/j-mckerracher/fresco-updates/issues/23)
-2. [Cell 4: Implement the add_interval_column function](https://github.com/j-mckerracher/fresco-updates/issues/4)
-3. [Cell 4: Implement the pre-processing handle_missing_metrics function](https://github.com/j-mckerracher/fresco-updates/issues/3)
+### 06/2023 Update:
+1. The FRESCO repository has been updated and now contains data from Anvil for the period July 2022 - May 2023.
+2. The Anvil job accounting data now also includes anonymized job names to enable performance analysis of possibly repetitive jobs using the same underlying codes.
 
-### 6/18 - 6/24
-Aryamaan
-1. [Cell 6: Implement the get_timeseries_by_timestamp function](https://github.com/j-mckerracher/fresco-updates/issues/5)
-2. [Cell 6: Implement the get_timeseries_by_values_and_unit function](https://github.com/j-mckerracher/fresco-updates/issues/6)
+### 12/2022 Update:
+The FRESCO repository has been updated with data from the Anvil capacity HPC system at Purdue University that entered operations in 2022. The Anvil data includes job accounting data from the Slurm scheduler and job-level resource usage timeseries data obtained from XDMoD for 480,728 jobs submitted between July 2022 and November 2022.
 
-Josh
-1. [Cell 6: Implement the get_timeseries_by_hosts function](https://github.com/j-mckerracher/fresco-updates/issues/7)
-2. [Cell 6: Implement the get_timeseries_by_job_ids function](https://github.com/j-mckerracher/fresco-updates/issues/8)
-3. [Cell 6: Implement the get_account_logs_by_job_ids function](https://github.com/j-mckerracher/fresco-updates/issues/9)
+#### Anvil Architecture Summary
+The Anvil cluster comprises 1000 CPU nodes with the 3rd generation AMD EPYC "Milan" processor and 100 Gbps HDR Infiniband interconnect. A separate sub-cluster comprises 16 GPU nodes with four NVIDIA A100 (40GB) GPUs each. Each CPU node has 256 GB DDR4-3200 memory, while the GPU nodes have 512 GB of memory. Further details of Anvil's architecture and job queues can be found in the [Anvil Documentation](#).
 
-### 6/25 - 7/1
-Aryamaan
-1. [Cell 7: Implement the get_average function](https://github.com/j-mckerracher/fresco-updates/issues/10)
-2. [Cell 7: Implement the get_mean function](https://github.com/j-mckerracher/fresco-updates/issues/11)
+## Version 2.0
+This version of the FRESCO repository comprises event and performance data for scientific code execution jobs submitted to Purdue University's Conte cluster between March 2015 and June 2017, and, to the University of Texas at Austin's Stampede 1 cluster between 2013 and 2016.
 
-Josh
-1. [Cell 7: Implement the get_median function](https://github.com/j-mckerracher/fresco-updates/issues/12)
-2. [Cell 7: Implement the get_standard_deviation function](https://github.com/j-mckerracher/fresco-updates/issues/13)
-3. [Cell 7: Implement the get_probability_density function](https://github.com/j-mckerracher/fresco-updates/issues/14)
+The Conte cluster comprises 580 nodes totaling 9280 cores with 40 Gbps Infiniband interconnects. Each node in the cluster has 64 GB of RAM and includes two additional 60-core Xeon Phi accelerators. The repository contains data for 10.8M jobs run on Conte over the 28-month period between March 2015 and June 2017.
 
-### 7/2 - 7/8
-Aryamaan
-1. [Cell 7: Implement the get_cumulative_density function](https://github.com/j-mckerracher/fresco-updates/issues/15)
-2. [Cell 7: Implement the get_data_points_outside_threshold function](https://github.com/j-mckerracher/fresco-updates/issues/16)
+The Stampede 1 cluster at the time of decommissioning consisted of 6400 nodes with a total of 522,080 processing cores. The repository contains data for 8.7M jobs during the 2013 - 2016 period.
 
-Josh
-1. [Cell 7: Implement the get_ratio_of_data_points_outside_threshold function](https://github.com/j-mckerracher/fresco-updates/issues/17)
-2. [Cell 7: Implement the calculate_correlation function](https://github.com/j-mckerracher/fresco-updates/issues/18)
+### Accessing the repository
+You can browse and download individual datasets from this repository by visiting the links under the Data Sets menus, or use Globus to download the entire data repository.
+- Instructions on using Globus can be found in the [Documentation](#).
 
-### 7/9 - 7/15
-Aryamaan
-1. [Cell 7: Implement data vizualisations](https://github.com/j-mckerracher/fresco-updates/issues/19)
+### How to cite this dataset:
+Saurabh Bagchi, Todd Evans, Rakesh Kumar, Rajesh Kalyanam, Stephen Harrell, Carolyn Ellis, Carol Song "FRESCO: Job failure and performance data repository from Purdue University", March, 2018. At: [https://www.datadepot.rcac.purdue.edu/sbagchi/fresco](https://www.datadepot.rcac.purdue.edu/sbagchi/fresco)
 
-Josh
-1. [Cell 9: Ensure all download options are provided to the user](https://github.com/j-mckerracher/fresco-updates/issues/21)
-
-### 7/16 - 7/22
-Aryamaan
-1. [Testing: throughly test all cells after development is done](https://github.com/j-mckerracher/fresco-updates/issues/24)
-
-Josh
-1. [Cell 10: Implement function allowing user to download data](https://github.com/j-mckerracher/fresco-updates/issues/20)
-2. [Testing: throughly test all cells after development is done](https://github.com/j-mckerracher/fresco-updates/issues/24)
-
-### 7/23 - 7/29
-Aryamaan
-1. TBD
-
-Josh
-1. TBD
-### 7/20 - 8/5
-Aryamaan
-1. TBD
-
-Josh
-1. TBD
-### 8/6 - 8/12
-Aryamaan
-1. TBD
-
-Josh
-1. TBD
-### 8/13 - 8/19
-Aryamaan
-1. TBD
-
-Josh
-1. TBD
-### 8/20 - 8/26
-Aryamaan
-1. TBD
-
-Josh
-1. TBD
+### Contacts
+- Dr. Rajesh Kalyanam: [rkalyana@purdue.edu](mailto:rkalyana@purdue.edu)
+- Stephen Harrell: [sharrell@tacc.utexas.edu](mailto:sharrell@tacc.utexas.edu)
+- Dr. Amiya Maji: [amaji@purdue.edu](mailto:amaji@purdue.edu)
+- Dr. Carol Song: [cxsong@purdue.edu](mailto:cxsong@purdue.edu)
+- Dr. Saurabh Bagchi: [sbagchi@purdue.edu](mailto:sbagchi@purdue.edu)
+- Joshua McKerracher [jmckerra@purdue.edu](mailto:jmckerra@purdue.edu)
