@@ -33,20 +33,6 @@ def remove_special_chars(s: str) -> str:
     return cleaned_str
 
 
-def extract_month_year(date_string: str) -> tuple:
-    """
-    This function extracts the month (in 3 letter form, e.g. 'Jan') and the year
-    (in four digit form, e.g. '2022') from a string in the format 'mm-dd-yyyy hh:mm:ss'.
-
-    :param date_string: A string representing a date in the format 'mm-dd-yyyy hh:mm:ss'.
-    :return: Two strings representing the month and the year extracted from the input date string.
-    """
-    date = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
-    month = date.strftime('%b')  # returns month in 3 letter form, e.g. 'Jan'
-    year = date.strftime('%Y')  # returns year in 4 digits, e.g. '2022'
-    return month, year
-
-
 def get_database_connection() -> Optional[psycopg2.extensions.connection]:
     """
     Establish a connection to a PostgreSQL database using credentials stored in environment variables.
@@ -224,7 +210,7 @@ def validate_jobname(value):
     for job in jobs:
         job = job.strip().upper()  # Remove any leading or trailing whitespace
         if not re.match(r'^JOBNAME\d+$', job):
-            return "Error: For 'host_list', value must be a comma-separated list of strings starting with 'NODE' followed by one or more digits."
+            return "Error: For job name, value must be a comma-separated list of strings starting with 'JOBNAME' followed by one or more digits."
     return None
 
 
@@ -607,9 +593,6 @@ def plot_data_points_outside_threshold(ratio_threshold_value, ts_df: pd.DataFram
     Returns:
     This function does not return any value. Instead, it displays a bar chart.
     """
-    # Here we calculate the ratio of data outside the threshold
-    # num_data_points = len(ts_df['value'])
-    # num_outside_threshold = sum(abs(ts_df['value']) > threshold)
     threshold = ratio_threshold_value
 
     # Here we calculate the ratio of data outside the threshold
@@ -820,21 +803,21 @@ def create_csv_download_file(df, filename="data.csv"):
 
 def create_excel_download_file(df, filename="data.xlsx"):
     """
-     Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
+    Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
 
-     Parameters:
-     :param df: A pandas DataFrame that is to be saved.
-     :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
+    Parameters:
+    :param df: A pandas DataFrame that is to be saved.
+    :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
 
-     Returns:
-     :return: A message indicating the file's location or an error message.
-     """
+    Returns:
+    :return: A message indicating the file's location or an error message.
+    """
     try:
         df_copy = df.copy()
 
         # If df has datetime columns, convert them to timezone-naive
         for col in df.columns:
-            if pd.api.types.is_datetime64tz_dtype(df[col]):
+            if isinstance(df[col].dtype, pd.DatetimeTZDtype):
                 df_copy[col] = df[col].dt.tz_convert(None)
 
         # Write DataFrame to Excel in memory
@@ -857,13 +840,20 @@ def create_excel_download_file(df, filename="data.xlsx"):
 
 def remove_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Removes specific columns ('type', 'diff', 'arc') from the given dataframe.
+       Removes specific columns ('type', 'diff', 'arc') from the given dataframe.
 
-    Parameters:
-    :param df: A pandas DataFrame
+       Parameters:
+       :param df: A pandas DataFrame
 
-    Returns:
-    :return: A pandas DataFrame with the specified columns removed.
-    """
+       Returns:
+       :return: A pandas DataFrame with the specified columns removed.
+       """
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("Input must be a pandas DataFrame.")
+
     columns_to_remove = ['type', 'diff', 'arc']
-    return df.drop(columns=columns_to_remove, errors='ignore')
+
+    try:
+        return df.drop(columns=columns_to_remove, errors='ignore')
+    except Exception as e:
+        raise RuntimeError(f"An error occurred while removing columns: {e}")
