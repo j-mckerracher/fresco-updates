@@ -12,6 +12,7 @@ import zipfile
 from typing import Optional
 from psycopg2 import OperationalError
 import warnings
+from tqdm.notebook import tqdm
 
 
 def remove_special_chars(s: str) -> str:
@@ -95,6 +96,61 @@ def execute_sql_query(query, incoming_df, params=None):
             return incoming_df
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+def execute_sql_query_chunked(query, incoming_df, params=None, target_num_chunks=25000):
+    """
+    Executes the provided SQL query in chunks using the given database connection and parameters,
+    and returns the combined result as a pandas DataFrame. This function is optimized for fetching
+    large datasets by breaking the query into manageable chunks and processing them sequentially.
+
+    Parameters:
+    :param query: A string containing the SQL query to be executed.
+    :param incoming_df: A pandas DataFrame which may be used to store intermediate results, though the final result
+                        is appended to a new DataFrame.
+    :param params: Optional. A list, tuple, or dict containing parameters to be passed to the SQL query.
+                   This is used to handle parameterized queries safely.
+    :param target_num_chunks: Optional. An integer that specifies the target number of chunks the dataset should
+                              be broken into. Default is 25000. The actual chunk size is determined by dividing
+                              the total number of rows by this value.
+
+    Returns:
+    :return: A pandas DataFrame containing the results of the executed SQL query combined from all chunks.
+             If there's an error in execution or establishing a database connection, the function may return None.
+    """
+    try:
+        with get_database_connection() as conn:
+            if conn is None:
+                print("Failed to establish a database connection.")
+                return
+
+            # Create a cursor object
+            with conn.cursor() as cur:
+                # Calculate total rows and chunk size
+                cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
+                total_rows = cur.fetchone()[0]
+
+                chunksize = total_rows // target_num_chunks if total_rows > target_num_chunks else total_rows
+
+                # Fetch data with a progress bar
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    pbar = tqdm(total=total_rows,
+                                desc="Fetching rows",
+                                bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
+                                           'Remaining: {remaining} | {rate_fmt}{postfix}]')
+
+                    chunks = []
+                    for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
+                        chunks.append(chunk)
+                        pbar.update(len(chunk))
+
+                pbar.close()
+                return pd.concat(chunks, ignore_index=True)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
 
 
 def validate_jid(value):
