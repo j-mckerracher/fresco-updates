@@ -13,6 +13,466 @@ from typing import Optional
 from psycopg2 import OperationalError
 import warnings
 from tqdm.notebook import tqdm
+from IPython.display import display, clear_output, HTML
+import ipywidgets as widgets
+
+# Global variables
+where_conditions_jobs = []
+time_window_valid_jobs = False
+MAX_DAYS_HOSTS = 31
+MAX_DAYS_JOBS = 180
+account_log_df = pd.DataFrame()
+host_data_sql_query = ""
+where_conditions_hosts = []
+time_window_valid_hosts = False
+time_series_df = pd.DataFrame()
+value_input_hosts = ""
+error_output_hosts = widgets.Output()
+job_data_columns_dropdown = widgets.SelectMultiple()
+validate_button_jobs = widgets.Button()
+start_time_jobs = widgets.NaiveDatetimePicker()
+end_time_jobs = widgets.NaiveDatetimePicker()
+output_jobs = widgets.Output()
+query_output_jobs = widgets.Output()
+error_output_jobs = widgets.Output()
+columns_dropdown_jobs = widgets.Dropdown()
+host_data_columns_dropdown = widgets.SelectMultiple()
+operators_dropdown_jobs = widgets.Dropdown()
+condition_list_jobs = widgets.SelectMultiple()
+validate_button_hosts = widgets.Button()
+start_time_hosts = widgets.NaiveDatetimePicker()
+end_time_hosts = widgets.NaiveDatetimePicker()
+output_hosts = widgets.Output()
+query_output_hosts = widgets.Output()
+operators_dropdown_hosts = widgets.Dropdown()
+columns_dropdown_hosts = widgets.Dropdown()
+condition_list_hosts = widgets.SelectMultiple()
+value_input_container_hosts = widgets.HBox()
+value_input_container_jobs = widgets.HBox()
+
+
+# ********************************* JOB DATA FUNCTIONS **********************************
+
+# Display SQL query
+def display_query_jobs():
+    global where_conditions_jobs, job_data_columns_dropdown, validate_button_jobs, start_time_jobs, end_time_jobs, query_output_jobs
+    query, params = construct_job_data_query(where_conditions_jobs, job_data_columns_dropdown.value,
+                                             validate_button_jobs.description, start_time_jobs.value,
+                                             end_time_jobs.value)
+    with query_output_jobs:
+        clear_output(wait=True)
+        print(f"Current SQL query:\n{query}\nParameters: {params}")
+
+
+def update_value_input_jobs(change):
+    global value_input_container_jobs
+    if '_time' in change['new']:
+        value_input = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0), description='Value:')
+    elif change['new'] == 'queue':
+        value_input = widgets.Dropdown(
+            options=['standard', 'wholenode', 'shared', 'highmem', 'gpu', 'benchmarking', 'wide', 'debug',
+                     'gpu-debug'],
+            description='Value:')
+    elif change['new'] == 'exitcode':
+        value_input = widgets.Dropdown(options=['TIMEOUT', 'COMPLETED', 'CANCELLED', 'FAILED', 'NODE_FAIL'],
+                                       description='Value:')
+    else:
+        value_input = widgets.Text(description='Value:')
+    value_input_container_jobs.children = [value_input]
+
+
+# Add condition
+def add_condition_jobs(b):
+    global error_output_jobs, where_conditions_jobs, time_window_valid_jobs, columns_dropdown_jobs, value_input_container_jobs, operators_dropdown_jobs, condition_list_jobs
+    if not time_window_valid_jobs:
+        with error_output_jobs:
+            clear_output(wait=True)
+            print("Please enter a valid time window before adding conditions.")
+        return
+    with error_output_jobs:
+        clear_output(wait=True)
+        column = columns_dropdown_jobs.value
+        value_widget = value_input_container_jobs.children[0]
+        if isinstance(value_widget, widgets.Dropdown):
+            value = value_widget.value
+        elif isinstance(value_widget.value, str):
+            value = value_widget.value.upper()
+        else:
+            value = value_widget.value
+        error_message = validate_condition_jobs(column, value)
+        if error_message:
+            print(error_message)
+        else:
+            condition = (column, operators_dropdown_jobs.value, value)
+            where_conditions_jobs.append(condition)
+            condition_list_jobs.options = [f"{col} {op} '{val}'" for col, op, val in where_conditions_jobs]
+            display_query_jobs()
+
+
+# Remove condition
+def remove_condition_jobs(b):
+    global error_output_jobs, condition_list_jobs, where_conditions_jobs
+    with error_output_jobs:
+        clear_output(wait=True)
+        for condition in condition_list_jobs.value:
+            index = condition_list_jobs.options.index(condition)
+            where_conditions_jobs.pop(index)
+        condition_list_jobs.options = [f"{col} {op} '{val}'" for col, op, val in where_conditions_jobs]
+        display_query_jobs()
+
+
+# Validate dates
+def on_button_clicked_jobs(b):
+    global time_window_valid_jobs, end_time_jobs, start_time_jobs, error_output_jobs, MAX_DAYS_JOBS
+    time_difference = end_time_jobs.value - start_time_jobs.value
+    if end_time_jobs.value and start_time_jobs.value >= end_time_jobs.value:
+        b.description = "Invalid Times"
+        b.button_style = 'danger'
+        time_window_valid_jobs = False
+    elif start_time_jobs.value and end_time_jobs.value <= start_time_jobs.value:
+        b.description = "Invalid Times"
+        b.button_style = 'danger'
+        time_window_valid_jobs = False
+    elif time_difference.days > MAX_DAYS_JOBS:  # Check if the time window is greater than one month
+        b.description = "Time Window Too Large"
+        b.button_style = 'danger'
+        time_window_valid_jobs = False
+    else:
+        b.description = "Times Valid"
+        b.button_style = 'success'
+        time_window_valid_jobs = True
+        with error_output_jobs:  # Clear the error message if the time window is valid
+            clear_output(wait=True)
+    display_query_jobs()  # Display the current SQL query for jobs
+
+
+# Execute query button handler for jobs
+def on_execute_button_clicked_jobs(b):
+    global account_log_df, output_jobs, time_window_valid_jobs, where_conditions_jobs, job_data_columns_dropdown, \
+        validate_button_jobs, start_time_jobs, end_time_jobs
+    with output_jobs:
+        clear_output(wait=True)  # Clear the previous output
+        if not time_window_valid_jobs:
+            print("Please enter a valid time window before executing the query.")
+            return
+        try:
+            query, params = construct_job_data_query(where_conditions_jobs, job_data_columns_dropdown.value,
+                                                     validate_button_jobs.description, start_time_jobs.value,
+                                                     end_time_jobs.value)
+            account_log_df = execute_sql_query_chunked(query, account_log_df, params=params)
+            print(f"\nResults for query: \n{query}\nParameters: {params}")
+            display(account_log_df)
+
+            # Code to give user the option to download the filtered data
+            print("\nDownload the Job table data? The files will appear on the left in the file explorer.")
+            csv_acc_download_button = widgets.Button(description="Download as CSV")
+            excel_acc_download_button = widgets.Button(description="Download as Excel")
+
+            start_jobs = start_time_jobs.value.strftime('%Y-%m-%d-%H-%M-%S')
+            end_jobs = end_time_jobs.value.strftime('%Y-%m-%d-%H-%M-%S')
+
+            def on_acc_csv_button_clicked(b):
+                create_csv_download_file(account_log_df,
+                                         filename=f"job-data-csv-{start_jobs}-to-{end_jobs}.csv")
+
+            def on_acc_excel_button_clicked(b):
+                create_excel_download_file(account_log_df,
+                                           filename=f"job-data-excel-{start_jobs}-to-{end_jobs}.xlsx")
+
+            csv_acc_download_button.on_click(on_acc_csv_button_clicked)
+            excel_acc_download_button.on_click(on_acc_excel_button_clicked)
+
+            # Put the buttons in a horizontal box
+            button_box2 = widgets.HBox([csv_acc_download_button, excel_acc_download_button])
+            display(button_box2)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+
+# ********************************* HOST DATA **********************************
+
+# Display SQL query
+def display_query_hosts():
+    global host_data_sql_query, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts, \
+        start_time_hosts, end_time_hosts, query_output_hosts
+    query = construct_query_hosts(where_conditions_hosts, host_data_columns_dropdown.value,
+                                  validate_button_hosts.description, start_time_hosts.value,
+                                  end_time_hosts.value)
+    with query_output_hosts:
+        clear_output(wait=True)
+        print(f"Current SQL query:\n{query}")
+        host_data_sql_query = query
+
+
+# Add condition
+def add_condition_hosts(b):
+    global error_output_hosts, where_conditions_hosts, time_window_valid_hosts, columns_dropdown_hosts, \
+        value_input_hosts, operators_dropdown_hosts, condition_list_hosts
+    if not time_window_valid_hosts:
+        with error_output_hosts:
+            clear_output(wait=True)
+            print("Please enter a valid time window before adding conditions.")
+        return
+    with error_output_hosts:
+        clear_output(wait=True)
+        column = columns_dropdown_hosts.value
+        value = value_input_hosts.value
+        if 'job' in value.casefold() or 'node' in value.casefold():
+            value = value.upper()
+        error_message = validate_condition_hosts(column, value)
+        if error_message:
+            print(error_message)
+        else:
+            condition = (column, operators_dropdown_hosts.value, value)
+            where_conditions_hosts.append(condition)
+            condition_list_hosts.options = [f"{col} {op} '{val}'" for col, op, val in where_conditions_hosts]
+            display_query_hosts()
+
+
+# Remove condition
+def remove_condition_hosts(b):
+    global error_output_hosts, condition_list_hosts, where_conditions_hosts, condition_list_hosts
+    with error_output_hosts:
+        clear_output(wait=True)
+        selected_conditions = list(condition_list_hosts.value)
+        for condition in selected_conditions:
+            index = condition_list_hosts.options.index(condition)
+            where_conditions_hosts.pop(index)
+        condition_list_hosts.options = [f"{col} {op} '{val}'" for col, op, val in where_conditions_hosts]
+        display_query_hosts()
+
+
+# Validate dates for hosts
+def on_button_clicked_hosts(b):
+    global time_window_valid_hosts, end_time_hosts, start_time_hosts, MAX_DAYS_HOSTS, error_output_hosts
+    time_difference = end_time_hosts.value - start_time_hosts.value
+    if end_time_hosts.value and start_time_hosts.value >= end_time_hosts.value:
+        b.description = "Invalid Times"
+        b.button_style = 'danger'
+        time_window_valid_hosts = False
+    elif start_time_hosts.value and end_time_hosts.value <= start_time_hosts.value:
+        b.description = "Invalid Times"
+        b.button_style = 'danger'
+        time_window_valid_hosts = False
+    elif time_difference.days > MAX_DAYS_HOSTS:  # Check if the time window is greater than one month
+        b.description = "Time Window Too Large"
+        b.button_style = 'danger'
+        b.button_style = 'danger'
+        time_window_valid_hosts = False
+    else:
+        b.description = "Times Valid"
+        b.button_style = 'success'
+        time_window_valid_hosts = True
+        with error_output_hosts:  # Clear the error message if the time window is valid
+            clear_output(wait=True)
+    display_query_hosts()  # Display the current SQL query for hosts
+
+
+# Execute query button handler for hosts
+def on_execute_button_clicked_hosts(b):
+    global time_series_df, host_data_sql_query, output_hosts, time_window_valid_hosts, where_conditions_hosts, \
+        host_data_columns_dropdown, validate_button_hosts, start_time_hosts, end_time_hosts
+    with output_hosts:
+        clear_output(wait=True)  # Clear the previous output
+        if not time_window_valid_hosts:
+            print("Please enter a valid time window before executing the query.")
+            return
+        try:
+            query, params = construct_query_hosts(where_conditions_hosts, host_data_columns_dropdown.value,
+                                                  validate_button_hosts.description, start_time_hosts.value,
+                                                  end_time_hosts.value)
+            time_series_df = execute_sql_query_chunked(query, time_series_df, params=params)
+            print(f"\nResults for query: \n{host_data_sql_query}\nParameters: {params}")
+            display(time_series_df)
+
+            # Code to give user the option to download the filtered data
+            print(
+                "\nDownload the filtered Host table data? The files will appear on the left in the file explorer.")
+            csv_download_button = widgets.Button(description="Download as CSV")
+            excel_download_button = widgets.Button(description="Download as Excel")
+
+            start = start_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
+            end = end_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
+
+            def on_csv_button_clicked(b):
+                create_csv_download_file(time_series_df, filename=f"host-data-csv-{start}-to-{end}.csv")
+
+            def on_excel_button_clicked(b):
+                create_excel_download_file(time_series_df, filename=f"host-data-excel-{start}-to-{end}.xlsx")
+
+            csv_download_button.on_click(on_csv_button_clicked)
+            excel_download_button.on_click(on_excel_button_clicked)
+
+            # Put the buttons in a horizontal box
+            button_box = widgets.HBox([csv_download_button, excel_download_button])
+            display(button_box)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+
+# Function to update the value input widget based on the selected column
+def update_value_input_hosts(change):
+    global value_input_hosts, value_input_container_hosts
+    if change['new'] == 'unit':
+        value_input_hosts = widgets.Dropdown(
+            options=['CPU %', 'GPU %', 'GB:memused', 'GB:memused_minus_diskcache', 'GB/s', 'MB/s'],
+            description='Value:')
+    elif change['new'] == 'event':
+        value_input_hosts = widgets.Dropdown(
+            options=['cpuuser', 'block', 'memused', 'memused_minus_diskcache', 'gpu_usage', 'nfs'],
+            description='Value:')
+    else:
+        value_input_hosts = widgets.Text(description='Value:')
+    value_input_container_hosts.children = [value_input_hosts]
+
+
+def display_widgets():
+    global host_data_columns_dropdown, columns_dropdown_hosts, operators_dropdown_hosts, value_input_hosts, \
+        start_time_hosts, end_time_hosts, validate_button_hosts, condition_list_hosts, value_input_container_hosts, \
+        job_data_columns_dropdown, columns_dropdown_jobs, operators_dropdown_jobs, start_time_jobs, end_time_jobs,\
+        validate_button_jobs, condition_list_jobs, value_input_container_jobs, time_series_df, host_data_sql_query
+    # ****************************** HOST DATA WIDGETS **********************************
+
+    # Widgets
+    banner_hosts_message = widgets.HTML("<h1>Query the Host Data Table</h1>")
+    query_time_message_hosts = widgets.HTML(
+        f"<h5>Please select the start and end times for your query. Max of <b>{MAX_DAYS_HOSTS}</b> days per query.</h5>")
+    query_cols_message = widgets.HTML("<h5>Please select columns you want to query:</h5>")
+    request_filters_message = widgets.HTML("<h5>Please add conditions to filter the data:</h5>")
+    current_filters_message = widgets.HTML("<h5>Current filtering conditions:</h5>")
+    host_data_columns_dropdown = widgets.SelectMultiple(
+        options=['*', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc'], value=['*'],
+        description='Columns:')
+    columns_dropdown_hosts = widgets.Dropdown(options=['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc'],
+                                              description='Column:')
+    operators_dropdown_hosts = widgets.Dropdown(options=['=', '!=', '<', '>', '<=', '>=', 'LIKE'],
+                                                description='Operator:')
+    value_input_hosts = widgets.Text(description='Value:')
+
+    start_time_hosts = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0),
+                                                   description='Start Time:')
+    end_time_hosts = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0), description='End Time:')
+
+    # start_time_hosts = widgets.DatePicker()
+    # end_time_hosts = widgets.DatePicker()
+
+    validate_button_hosts = widgets.Button(description="Validate Dates")
+    execute_button_hosts = widgets.Button(description="Execute Query")
+    add_condition_button_hosts = widgets.Button(description="Add Condition")
+    remove_condition_button_hosts = widgets.Button(description="Remove Condition")
+    condition_list_hosts = widgets.SelectMultiple(options=[], description='Conditions:')
+
+    # Attach the update function to the 'columns_dropdown' widget
+    columns_dropdown_hosts.observe(update_value_input_hosts, names='value')
+
+    # Container to hold the value input widget
+    value_input_container_hosts = widgets.HBox([value_input_hosts])
+
+    # Button events.
+    validate_button_hosts.on_click(on_button_clicked_hosts)
+    execute_button_hosts.on_click(on_execute_button_clicked_hosts)
+    add_condition_button_hosts.on_click(add_condition_hosts)
+    remove_condition_button_hosts.on_click(remove_condition_hosts)
+
+    condition_buttons = widgets.HBox([add_condition_button_hosts, remove_condition_button_hosts])
+
+    # Group the widgets for "hosts" into a VBox
+    hosts_group = widgets.VBox([
+        banner_hosts_message,
+        query_time_message_hosts,
+        start_time_hosts,
+        end_time_hosts,
+        validate_button_hosts,
+        query_cols_message,
+        host_data_columns_dropdown,
+        request_filters_message,
+        columns_dropdown_hosts,
+        operators_dropdown_hosts,
+        value_input_container_hosts,
+        condition_buttons,
+        current_filters_message,
+        condition_list_hosts,
+        error_output_hosts,
+        execute_button_hosts,
+        query_output_hosts,
+        output_hosts
+    ])
+
+    # ****************************** JOB DATA WIDGETS **********************************
+
+    # Widgets for job_data
+    banner_jobs = widgets.HTML("<h1>Query the Job Data Table</h1>")
+    query_time_message_jobs = widgets.HTML(
+        f"<h5>Please select the start and end times for your query. Max of <b>{MAX_DAYS_JOBS}</b> days per query.</h5>")
+    job_data_columns_dropdown = widgets.SelectMultiple(
+        options=['*', 'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs', 'nhosts',
+                 'ncores', 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode', 'host_list'],
+        value=['*'], description='Columns:')
+    columns_dropdown_jobs = widgets.Dropdown(
+        options=['jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs', 'nhosts', 'ncores',
+                 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode', 'host_list'],
+        description='Column:')
+    operators_dropdown_jobs = widgets.Dropdown(options=['=', '!=', '<', '>', '<=', '>=', 'LIKE'],
+                                               description='Operator:')
+    value_input_jobs = widgets.Text(description='Value:')
+    start_time_jobs = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0),
+                                                  description='Start Time:')
+    end_time_jobs = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0), description='End Time:')
+    validate_button_jobs = widgets.Button(description="Validate Dates")
+    execute_button_jobs = widgets.Button(description="Execute Query")
+    add_condition_button_jobs = widgets.Button(description="Add Condition")
+    remove_condition_button_jobs = widgets.Button(description="Remove Condition")
+    condition_list_jobs = widgets.SelectMultiple(options=[], description='Conditions:')
+
+    # Attach the update function to the 'columns_dropdown' widget
+    columns_dropdown_jobs.observe(update_value_input_jobs, names='value')
+
+    # Container to hold the value input widget
+    value_input_container_jobs = widgets.HBox([value_input_jobs])
+
+    # Button events
+    validate_button_jobs.on_click(on_button_clicked_jobs)
+    execute_button_jobs.on_click(on_execute_button_clicked_jobs)
+    add_condition_button_jobs.on_click(add_condition_jobs)
+    remove_condition_button_jobs.on_click(remove_condition_jobs)
+    condition_buttons_jobs = widgets.HBox(
+        [add_condition_button_jobs, remove_condition_button_jobs])  # HBox for the buttons
+
+    # Group the widgets for "jobs" into another VBox
+    jobs_group = widgets.VBox([
+        banner_jobs,
+        query_time_message_jobs,
+        start_time_jobs,
+        end_time_jobs,
+        validate_button_jobs,
+        query_cols_message,
+        job_data_columns_dropdown,
+        request_filters_message,
+        columns_dropdown_jobs,
+        operators_dropdown_jobs,
+        value_input_container_jobs,
+        condition_buttons_jobs,
+        current_filters_message,
+        condition_list_jobs,
+        error_output_jobs,
+        execute_button_jobs,
+        query_output_jobs,
+        output_jobs
+    ])
+
+    # Use GridBox to place the two VBox widgets side by side
+    grid = widgets.GridBox(children=[hosts_group, jobs_group],
+                           layout=widgets.Layout(
+                               width='100%',
+                               grid_template_columns='50% 50%',  # Two columns, each taking up 50% of the width
+                               grid_template_rows='auto',  # One row, height determined by content
+                           ))
+
+    display(grid)
+
+    return time_series_df, host_data_sql_query
 
 
 def remove_special_chars(s: str) -> str:
@@ -149,8 +609,6 @@ def execute_sql_query_chunked(query, incoming_df, params=None, target_num_chunks
                 return pd.concat(chunks, ignore_index=True)
     except Exception as e:
         print(f"An error occurred: {e}")
-
-
 
 
 def validate_jid(value):
