@@ -20,6 +20,7 @@ import ipywidgets as widgets
 
 class NotebookUtilities:
     def __init__(self):
+        self.where_conditions_values = []
         self.where_conditions_jobs = []
         self.time_window_valid_jobs = False
         self.MAX_DAYS_HOSTS = 31
@@ -45,6 +46,8 @@ class NotebookUtilities:
         self.validate_button_hosts = widgets.Button()
         self.start_time_hosts = widgets.NaiveDatetimePicker()
         self.end_time_hosts = widgets.NaiveDatetimePicker()
+        # self.start_time_hosts = widgets.DatePicker()
+        # self.end_time_hosts = widgets.DatePicker()
         self.output_hosts = widgets.Output()
         self.query_output_hosts = widgets.Output()
         self.operators_dropdown_hosts = widgets.Dropdown()
@@ -57,6 +60,13 @@ class NotebookUtilities:
         self.interval_type = widgets.Dropdown()
         self.time_units = widgets.Dropdown()
         self.time_value = widgets.IntText()
+        self.distinct_checkbox = widgets.Checkbox()
+        self.order_by_dropdown = widgets.Dropdown()
+        self.order_by_direction_dropdown = widgets.Dropdown()
+        self.aggregation_function_dropdown = widgets.Dropdown()
+        self.limit_input = widgets.IntText()
+        self.in_values_textarea = widgets.Textarea()
+        self.in_values_dropdown = widgets.Dropdown()
 
     def get_time_series_df(self):
         return self.time_series_df
@@ -108,15 +118,15 @@ class NotebookUtilities:
         Returns:
         :return: None. This method outputs the query to the notebook directly and updates the class attribute.
         """
-        query = self.construct_query_hosts(self.where_conditions_hosts,
-                                           self.host_data_columns_dropdown.value,
-                                           self.validate_button_hosts.description,
-                                           self.start_time_hosts.value,
-                                           self.end_time_hosts.value)
+        query, params = self.construct_query_hosts(self.where_conditions_hosts,
+                                                   self.host_data_columns_dropdown.value,
+                                                   self.validate_button_hosts.description,
+                                                   self.start_time_hosts.value,
+                                                   self.end_time_hosts.value)
         with self.query_output_hosts:
             clear_output(wait=True)
-            print(f"Current SQL query:\n{query}")
-            self.host_data_sql_query = query
+            print(f"Current SQL query:\n{query, params}")
+            self.host_data_sql_query = query, params
 
     def update_value_input_jobs(self, change):
         """
@@ -151,6 +161,7 @@ class NotebookUtilities:
             value_input = widgets.Text(description='Value:')
         self.value_input_container_jobs.children = [value_input]
 
+
     def add_condition_jobs(self, b):
         """
         Adds a new condition for filtering the job data based on user input.
@@ -176,22 +187,6 @@ class NotebookUtilities:
         Returns:
         :return: None. This method updates class attributes directly and displays messages in the output widget.
         """
-        if not self.time_window_valid_jobs:
-            with self.error_output_jobs:
-                clear_output(wait=True)
-                print("Please enter a valid time window before adding conditions.")
-            return
-        with self.error_output_jobs:
-            clear_output(wait=True)
-            column = self.columns_dropdown_jobs.value
-            value_widget = self.value_input_container_jobs.children[0]
-            if isinstance(value_widget, widgets.Dropdown):
-                value = value_widget.value
-            elif isinstance(value_widget.value, str):
-                value = value_widget.value.upper()
-            else:
-                value = value_widget.value
-
         if not self.time_window_valid_jobs:
             with self.error_output_jobs:
                 clear_output(wait=True)
@@ -253,12 +248,18 @@ class NotebookUtilities:
             value = self.value_input_hosts.value
             if 'job' in value.casefold() or 'node' in value.casefold():
                 value = value.upper()
+
             error_message = self.validate_condition_hosts(column, value)
             if error_message:
                 print(error_message)
             else:
-                condition = (column, self.operators_dropdown_hosts.value, value)
+                # Use %s as a placeholder for the actual value
+                condition = (column, self.operators_dropdown_hosts.value, "%s")
                 self.where_conditions_hosts.append(condition)
+
+                # Store the actual value separately
+                self.where_conditions_values.append(value)
+
                 self.condition_list_hosts.options = [f"{col} {op} '{val}'" for col, op, val in
                                                      self.where_conditions_hosts]
                 self.display_query_hosts()
@@ -541,6 +542,64 @@ class NotebookUtilities:
             except Exception as e:
                 print(f"An error occurred: {e}")
 
+    def on_order_by_changed(self, change):
+        """
+        Handles the change in the order by dropdown widget.
+
+        This method updates the order by clause of the SQL query constructed.
+
+        Parameters:
+        :param change: The change in the dropdown widget.
+
+        Attributes used:
+        :attr self.order_by_dropdown: Dropdown widget for selecting the order by clause.
+        :attr self.host_data_sql_query: String to store the constructed SQL query.
+
+        Returns:
+        :return: None. This method updates class attributes directly and displays the query results or notifications in the output widget.
+        """
+        if change['new'] == 'None':
+            self.host_data_sql_query = self.host_data_sql_query.replace("ORDER BY", "")
+            self.display_query_hosts()
+        else:
+            self.host_data_sql_query = self.host_data_sql_query.replace("ORDER BY", f"ORDER BY {change['new']}")
+
+    def on_distinct_checkbox_change(self, change):
+        """
+        Callback function to be executed when the value of distinct_checkbox changes.
+
+        Parameters:
+        :param change: Contains information about the change.
+        """
+        if change['name'] == 'value':  # Check if the checkbox is checked
+            self.display_query_hosts()
+
+    def on_order_by_dropdown_change(self, change):
+        # Check if the change is due to a new value being selected in the dropdown
+        if change['type'] == 'change' and change['name'] == 'value':
+            # Retrieve the selected column from the dropdown's new value
+            order_by_column = change['new']
+
+            # If the dropdown has a 'None' or similar option to indicate no ordering, handle it
+            if order_by_column in (None, 'None', ''):
+                order_by_column = None
+
+            # Display the updated SQL query
+            self.display_query_hosts()
+
+    def on_group_by_changed(self, change):
+        if change['new'] != 'None':
+            self.display_query_hosts()
+
+    def on_limit_changed(self, change):
+        self.display_query_hosts()
+
+    def on_in_values_changed(self, change):
+        # Split the string by commas and strip whitespace
+        values = [val.strip() for val in change['new'].split(',')]
+        # You might want to check if values are valid for the selected column here
+        self.display_query_hosts()
+
     def update_value_input_hosts(self, change):
         """
         Executes the constructed SQL query for host data, displays the results, and provides options for downloading the data.
@@ -614,6 +673,9 @@ class NotebookUtilities:
         self.operators_dropdown_hosts = widgets.Dropdown(options=['=', '!=', '<', '>', '<=', '>=', 'LIKE'],
                                                          description='Operator:')
         self.value_input_hosts = widgets.Text(description='Value:')
+        # self.start_time_hosts = widgets.DatePicker()
+        # self.end_time_hosts = widgets.DatePicker()
+
         self.start_time_hosts = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0),
                                                             description='Start Time:')
         self.end_time_hosts = widgets.NaiveDatetimePicker(value=datetime.now().replace(microsecond=0),
@@ -624,8 +686,57 @@ class NotebookUtilities:
         self.remove_condition_button_hosts = widgets.Button(description="Remove Condition")
         self.condition_list_hosts = widgets.SelectMultiple(options=[], description='Conditions:')
 
+        # For DISTINCT
+        self.distinct_checkbox = widgets.Checkbox(
+            value=False,
+            description='Distinct',
+            disabled=False
+        )
+
+        # For ORDER BY
+        self.order_by_dropdown = widgets.Dropdown(
+            options=['None'] + [col for col in self.host_data_columns_dropdown.options if col != "*"],
+            value='None',
+            description='Order By:'
+        )
+        self.order_by_direction_dropdown = widgets.Dropdown(
+            options=['ASC', 'DESC'],
+            value='ASC',
+            description='Direction:'
+        )
+
+        # For LIMIT
+        self.limit_input = widgets.IntText(
+            value=0,
+            description='Limit Results:',
+            disabled=False
+        )
+
+        # For IN condition
+        self.in_values_dropdown = widgets.Dropdown(
+            options=['None'] + [col for col in self.host_data_columns_dropdown.options if col != "*"],
+            value='None',
+            description='IN Column:'
+        )
+
+        self.in_values_textarea = widgets.Textarea(
+            value='',
+            placeholder='Enter values separated by commas',
+            description='IN values:',
+            disabled=False
+        )
+
         # Attach the update function to the 'columns_dropdown' widget
         self.columns_dropdown_hosts.observe(self.update_value_input_hosts, names='value')
+        self.distinct_checkbox.observe(self.on_distinct_checkbox_change)
+        self.order_by_dropdown.observe(self.on_order_by_dropdown_change)
+        self.order_by_direction_dropdown.observe(self.on_order_by_dropdown_change)
+        self.host_data_columns_dropdown.observe(self.on_columns_changed, names='value')
+        self.host_data_columns_dropdown.observe(self.update_order_by_options, names='value')
+        self.limit_input.observe(self.on_limit_input_change)
+        self.in_values_dropdown.observe(self.on_in_values_dropdown_change)
+        self.in_values_dropdown.observe(self.update_in_values_options, names='value')
+        self.in_values_textarea.observe(self.in_values_text_area_change)
 
         # Container to hold the value input widget
         self.value_input_container_hosts = widgets.HBox([self.value_input_hosts])
@@ -647,6 +758,12 @@ class NotebookUtilities:
             self.validate_button_hosts,
             query_cols_message,
             self.host_data_columns_dropdown,
+            self.distinct_checkbox,  # New widget for DISTINCT
+            self.order_by_dropdown,  # New widget for ORDER BY
+            self.order_by_direction_dropdown,  # New widget for ORDER BY direction
+            self.limit_input,  # New widget for LIMIT
+            self.in_values_dropdown,
+            self.in_values_textarea,  # New widget for IN condition
             request_filters_message,
             self.columns_dropdown_hosts,
             self.operators_dropdown_hosts,
@@ -1129,44 +1246,62 @@ class NotebookUtilities:
                        "followed by one or more digits."
         return None
 
-    def construct_query_hosts(self, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts,
-                              start_time_hosts,
-                              end_time_hosts):
+    def validate_in_input(self, values_str):
         """
-        Constructs an SQL query based on the specified conditions and selected columns for host data retrieval.
+        Validates and parses the comma-separated string for the IN SQL functionality.
 
-        Parameters:
-        :param where_conditions_hosts: A list of tuples, where each tuple contains three elements - the column name, the
-                                       operation (e.g., '=', '<>', '<', '>'), and the value to be used in the WHERE clause.
-        :param host_data_columns_dropdown: A list of strings, each representing a selected column for the query.
-        :param validate_button_hosts: A string indicating the validation status for time. If set to "Times Valid", the
-                                      start_time_hosts and end_time_hosts are considered.
-        :param start_time_hosts: A datetime object or string representing the start time for the query's time condition.
-                                 This is considered if validate_button_hosts is set to "Times Valid".
-        :param end_time_hosts: A datetime object or string representing the end time for the query's time condition. This
-                               is considered if validate_button_hosts is set to "Times Valid".
+        Args:
+        - values_str (str): A comma-separated string.
 
         Returns:
-        :return: A tuple containing two elements. The first element is a string representing the constructed SQL query. The
-                 second element is a list containing the parameter values to be used in the query.
+        - list: A list of parsed values.
         """
+        # Strip whitespace and split by comma
+        values = [val.strip() for val in values_str.split(',')]
+        return values
+
+    def construct_query_hosts(self, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts,
+                              start_time_hosts, end_time_hosts):
         selected_columns = ', '.join(host_data_columns_dropdown)
         table_name = 'host_data'
-        query = f"SELECT {selected_columns} FROM {table_name}"
 
+        # Handle DISTINCT
+        if self.distinct_checkbox.value:
+            query = f"SELECT DISTINCT {selected_columns} FROM {table_name}"
+        else:
+            query = f"SELECT {selected_columns} FROM {table_name}"
+
+        # Initialize params and local conditions list
         params = []
-        where_clause = ""
-        if where_conditions_hosts:
-            where_clause = " AND ".join([f"{col} {op} %s" for col, op, _ in where_conditions_hosts])
-            params = [val for _, _, val in where_conditions_hosts]
+        local_conditions = where_conditions_hosts.copy()  # Start with the conditions passed in
+
+        # Add the values from where_conditions_values to params
+        params.extend(self.where_conditions_values)
+
+        # Handle time validation
+        if validate_button_hosts == "Times Valid":
+            local_conditions.append(("time", "BETWEEN", "%s AND %s"))
+            params.extend([start_time_hosts, end_time_hosts])
+
+        # Handle IN condition
+        in_values = [value.strip() for value in self.in_values_textarea.value.split(',')]
+        if in_values and in_values[0]:  # Check if the first value is not empty
+            in_clause = ', '.join(['%s'] * len(in_values))
+            local_conditions.append((self.in_values_dropdown.value, "IN", f"({in_clause})"))
+            params.extend(in_values)
+
+        # Construct the WHERE clause
+        if local_conditions:
+            where_clause = " AND ".join([f"{col} {op} {val}" for col, op, val in local_conditions])
             query += f" WHERE {where_clause}"
 
-        if validate_button_hosts == "Times Valid":
-            if where_conditions_hosts:
-                query += f" AND time BETWEEN %s AND %s"
-            else:
-                query += f" WHERE time BETWEEN %s AND %s"
-            params += [start_time_hosts, end_time_hosts]
+        # Handle ORDER BY
+        if self.order_by_dropdown.value != 'None':
+            query += f" ORDER BY {self.order_by_dropdown.value} {self.order_by_direction_dropdown.value}"
+
+        # Handle LIMIT
+        if self.limit_input.value > 0:
+            query += f" LIMIT {self.limit_input.value}"
 
         return query, params
 
@@ -1315,6 +1450,14 @@ class NotebookUtilities:
         except NameError:
             print("ERROR: Please make sure to run the previous notebook cell before executing this one.")
 
+    def on_columns_changed(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            self.display_query_hosts()
+
+    def on_host_list_changed(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            self.display_query_jobs()
+
     def display_plots(self):
         try:
             ts_df = self.get_time_series_df().copy()
@@ -1375,8 +1518,9 @@ class NotebookUtilities:
                                                   titles=self.stats.value + ('Box and Whisker',)) for unit in units]
             else:
                 tab.children = [
-                    widgets.Accordion([widgets.Box([widgets.Label(stat), outputs[unit][stat]]) for stat in self.stats.value],
-                                      titles=self.stats.value) for unit in units]
+                    widgets.Accordion(
+                        [widgets.Box([widgets.Label(stat), outputs[unit][stat]]) for stat in self.stats.value],
+                        titles=self.stats.value) for unit in units]
 
             tab.titles = units
 
@@ -1416,7 +1560,8 @@ class NotebookUtilities:
                             continue
                         elif metric == "Ratio of Data Outside Threshold":
                             with outputs[unit][metric]:
-                                unit_stat_dfs[unit][metric] = metric_func_map[metric](self.ratio_threshold.value, metric_df)
+                                unit_stat_dfs[unit][metric] = metric_func_map[metric](self.ratio_threshold.value,
+                                                                                      metric_df)
                             continue
 
                         # Update the progress bar
@@ -1896,3 +2041,34 @@ class NotebookUtilities:
             self.time_series_df.drop(columns=columns_to_remove, errors='ignore', inplace=True)
         except Exception as e:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
+
+    def on_limit_input_change(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            if self.limit_input.value > 0:
+                self.display_query_hosts()
+
+    def update_order_by_options(self, change):
+        # If * is selected, set all available columns as options
+        if '*' in self.host_data_columns_dropdown.value:
+            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
+            self.order_by_dropdown.options = all_columns
+        else:
+            # Set the selected columns as options for order_by_dropdown
+            self.order_by_dropdown.options = self.host_data_columns_dropdown.value
+
+    def in_values_text_area_change(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            self.display_query_hosts()
+
+    def on_in_values_dropdown_change(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            self.display_query_hosts()
+
+    def update_in_values_options(self, change):
+        # If * is selected, set all available columns as options
+        if '*' in self.host_data_columns_dropdown.value:
+            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
+            self.in_values_dropdown.options = all_columns
+        else:
+            # Set the selected columns as options for order_by_dropdown
+            self.in_values_dropdown.options = self.host_data_columns_dropdown.value
