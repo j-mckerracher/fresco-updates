@@ -1630,9 +1630,16 @@ class NotebookUtilities:
 
                     # If rolling is false, use the entire metric_df for the box plot
                     if not rolling:
-                        df_mean = metric_df['value'] if 'Mean' in self.stats.value else None
-                        df_std = metric_df['value'] if 'Standard Deviation' in self.stats.value else None
-                        df_median = metric_df['value'] if 'Median' in self.stats.value else None
+                        df_mean = pd.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
+                        df_std = pd.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
+                        df_median = pd.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
+
+                        if df_mean is not None:
+                            df_mean.columns = ['value']
+                        if df_std is not None:
+                            df_std.columns = ['value']
+                        if df_median is not None:
+                            df_median.columns = ['value']
 
                     # Plot box and whisker
                     if any(df is not None for df in [df_mean, df_std, df_median]):
@@ -1896,26 +1903,21 @@ class NotebookUtilities:
         all_data = []
         labels = []
         color_choices = []
-        # Check and process data for Mean
         if df_mean is not None:
-            df_mean = df_mean.dropna()
-            all_data.append(df_mean)
+            df_mean.dropna(subset=['value'], inplace=True)
+            all_data.append(df_mean['value'])
             labels.append('Mean')
-            color_choices.append('blue')
-
-        # Check and process data for Standard Deviation
-        if df_std is not None:
-            df_std = df_std.dropna()
-            all_data.append(df_std)
-            labels.append('Standard Deviation')
-            color_choices.append('green')
-
-        # Check and process data for Median
+            color_choices.append('pink')
         if df_median is not None:
-            df_median = df_median.dropna()
-            all_data.append(df_median)
+            df_median.dropna(subset=['value'], inplace=True)
+            all_data.append(df_median['value'])
             labels.append('Median')
-            color_choices.append('red')
+            color_choices.append('lightgreen')
+        if df_std is not None:
+            df_std.dropna(subset=['value'], inplace=True)
+            all_data.append(df_std['value'])
+            labels.append('Standard Deviation')
+            color_choices.append('lightyellow')
 
         # Create a new figure and axis for the box plot
         fig, ax = plt.subplots()
