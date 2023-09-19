@@ -260,8 +260,12 @@ class NotebookUtilities:
                 # Store the actual value separately
                 self.where_conditions_values.append(value)
 
-                self.condition_list_hosts.options = [f"{col} {op} '{val}'" for col, op, val in
-                                                     self.where_conditions_hosts]
+                # When displaying to the user, replace %s with the actual value
+                display_conditions = [
+                    f"{col} {op} '{val}'" if "%s" not in val else f"{col} {op} '{self.where_conditions_values[i]}'"
+                    for i, (col, op, val) in enumerate(self.where_conditions_hosts)
+                ]
+                self.condition_list_hosts.options = display_conditions
                 self.display_query_hosts()
 
     def remove_condition_jobs(self, b):
@@ -577,13 +581,6 @@ class NotebookUtilities:
     def on_order_by_dropdown_change(self, change):
         # Check if the change is due to a new value being selected in the dropdown
         if change['type'] == 'change' and change['name'] == 'value':
-            # Retrieve the selected column from the dropdown's new value
-            order_by_column = change['new']
-
-            # If the dropdown has a 'None' or similar option to indicate no ordering, handle it
-            if order_by_column in (None, 'None', ''):
-                order_by_column = None
-
             # Display the updated SQL query
             self.display_query_hosts()
 
@@ -660,10 +657,14 @@ class NotebookUtilities:
         # Widgets for host data
         banner_hosts_message = widgets.HTML("<h1>Query the Host Data Table</h1>")
         query_time_message_hosts = widgets.HTML(
-            f"<h5>Please select the start and end times for your query. Max of <b>{self.MAX_DAYS_HOSTS}</b> days per query.</h5>")
-        query_cols_message = widgets.HTML("<h5>Please select columns you want to query:</h5>")
-        request_filters_message = widgets.HTML("<h5>Please add conditions to filter the data:</h5>")
-        current_filters_message = widgets.HTML("<h5>Current filtering conditions:</h5>")
+            f"<h4>Select start & end times (Max: <b>{self.MAX_DAYS_HOSTS}</b> days).</h4>")
+        query_cols_message = widgets.HTML("<h4>Select columns:</h4>")
+        request_filters_message = widgets.HTML("<h4>Add data filters:</h4>")
+        current_filters_message = widgets.HTML("<h4>Active filters:</h4>")
+        order_by_message = widgets.HTML("<h4>Choose sort column and direction:</h4>")
+        limit_message = widgets.HTML("<h4>Set results limit:</h4>")
+        in_values_message = widgets.HTML("<h4>Enter IN clause values:</h4>")
+
         self.host_data_columns_dropdown = widgets.SelectMultiple(
             options=['*', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc'], value=['*'],
             description='Columns:')
@@ -758,12 +759,15 @@ class NotebookUtilities:
             self.validate_button_hosts,
             query_cols_message,
             self.host_data_columns_dropdown,
-            self.distinct_checkbox,  # New widget for DISTINCT
-            self.order_by_dropdown,  # New widget for ORDER BY
-            self.order_by_direction_dropdown,  # New widget for ORDER BY direction
-            self.limit_input,  # New widget for LIMIT
+            self.distinct_checkbox,
+            order_by_message,
+            self.order_by_dropdown,
+            self.order_by_direction_dropdown,
+            limit_message,
+            self.limit_input,
+            in_values_message,
             self.in_values_dropdown,
-            self.in_values_textarea,  # New widget for IN condition
+            self.in_values_textarea,
             request_filters_message,
             self.columns_dropdown_hosts,
             self.operators_dropdown_hosts,
@@ -782,8 +786,8 @@ class NotebookUtilities:
         # Widgets for job_data
         banner_jobs = widgets.HTML("<h1>Query the Job Data Table</h1>")
         query_time_message_jobs = widgets.HTML(
-            f"<h5>Please select the start and end times for your query. Max of <b>{self.MAX_DAYS_JOBS}</b> days "
-            f"per query.</h5>")
+            f"<h4>Please select the start and end times for your query. Max of <b>{self.MAX_DAYS_JOBS}</b> days "
+            f"per query.</h4>")
         self.job_data_columns_dropdown = widgets.SelectMultiple(
             options=['*', 'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
                      'nhosts',
@@ -1458,11 +1462,17 @@ class NotebookUtilities:
         if change['name'] == 'value' and change['type'] == 'change':
             self.display_query_jobs()
 
+    def conditionally_display_legend(self):
+        """
+        This is a utility function to conditionally display the legend only if there are labeled data series.
+        """
+        if len(plt.gca().get_legend_handles_labels()[0]) > 0:
+            plt.legend(loc='upper left', fontsize="10")
+
     def display_plots(self):
         try:
             ts_df = self.get_time_series_df().copy()
             try:
-                # Convert the 'time' columns to datetime
                 ts_df['time'] = pd.to_datetime(ts_df['time'])
                 ts_df = ts_df.set_index('time')
                 ts_df = ts_df.sort_index()
@@ -1533,12 +1543,9 @@ class NotebookUtilities:
                 for unit in units:
                     unit_stat_dfs[unit] = {}
                     for metric in self.stats.value:
-                        message_display.value = ""
-                        message_display.value = f"Generating plot for unit <b>{unit}</b> with metric <b>{metric}</b>..."
                         metric_df = ts_df.query(f"`event` == '{unit_map[unit]}'")
                         rolling = False
 
-                        # Calculate stats
                         if self.interval_type.value == "Time":
                             rolling = True
                             try:
@@ -1571,8 +1578,6 @@ class NotebookUtilities:
                         if rolling:
                             unit_stat_dfs[unit][metric] = metric_func_map[metric](metric_df, rolling=True,
                                                                                   window=window)
-
-                            # Plot stats
                             with outputs[unit][metric]:
                                 unit_stat_dfs[unit][metric].plot()
                                 x_axis_label = ""
@@ -1584,15 +1589,51 @@ class NotebookUtilities:
                                 plt.gcf().autofmt_xdate()  # auto formats datetimes
                                 plt.style.use('fivethirtyeight')
                                 plt.title(f"{unit} {metric}")
-                                plt.legend(loc='upper left', fontsize="10")
+                                self.conditionally_display_legend()
                                 plt.xlabel(x_axis_label)
                                 plt.ylabel(y_axis_label)
+                                plt.show()
+                        else:
+                            # Plot the entire metric_df for the specified metric
+                            with outputs[unit][metric]:
+                                metric_df['value'].plot()
+                                plt.gcf().autofmt_xdate()
+                                plt.style.use('fivethirtyeight')
+                                plt.title(f"{unit} {metric} Over Time")
+                                plt.xlabel("Timestamp")
+                                plt.ylabel(unit)
+
+                                # Calculate the statistic value
+                                if metric == "Mean":
+                                    stat_value = metric_df['value'].mean()
+                                elif metric == "Median":
+                                    stat_value = metric_df['value'].median()
+                                elif metric == "Standard Deviation":
+                                    stat_value = metric_df['value'].std()
+                                else:
+                                    stat_value = None
+
+                                # Annotate the plot with the statistic value
+                                if stat_value is not None:
+                                    annotation_text = f"{metric}: {stat_value:.2f}"
+                                    plt.annotate(annotation_text, xy=(0.05, 0.95), xycoords='axes fraction',
+                                                 fontsize=10,
+                                                 verticalalignment='top',
+                                                 bbox=dict(boxstyle="square", facecolor="white"))
+
                                 plt.show()
 
                     # Get the stats dataframes
                     df_mean = unit_stat_dfs[unit].get('Mean')
                     df_std = unit_stat_dfs[unit].get('Standard Deviation')
                     df_median = unit_stat_dfs[unit].get('Median')
+
+                    # If rolling is false, use the entire metric_df for the box plot
+                    if not rolling:
+                        df_mean = metric_df['value'] if 'Mean' in self.stats.value else None
+                        df_std = metric_df['value'] if 'Standard Deviation' in self.stats.value else None
+                        df_median = metric_df['value'] if 'Median' in self.stats.value else None
+
                     # Plot box and whisker
                     if any(df is not None for df in [df_mean, df_std, df_median]):
                         with outputs[unit]['Box and Whisker']:
@@ -1855,21 +1896,26 @@ class NotebookUtilities:
         all_data = []
         labels = []
         color_choices = []
+        # Check and process data for Mean
         if df_mean is not None:
-            df_mean.dropna(subset=['value'], inplace=True)
-            all_data.append(df_mean['value'])
+            df_mean = df_mean.dropna()
+            all_data.append(df_mean)
             labels.append('Mean')
-            color_choices.append('pink')
-        if df_median is not None:
-            df_median.dropna(subset=['value'], inplace=True)
-            all_data.append(df_median['value'])
-            labels.append('Median')
-            color_choices.append('lightgreen')
+            color_choices.append('blue')
+
+        # Check and process data for Standard Deviation
         if df_std is not None:
-            df_std.dropna(subset=['value'], inplace=True)
-            all_data.append(df_std['value'])
+            df_std = df_std.dropna()
+            all_data.append(df_std)
             labels.append('Standard Deviation')
-            color_choices.append('lightyellow')
+            color_choices.append('green')
+
+        # Check and process data for Median
+        if df_median is not None:
+            df_median = df_median.dropna()
+            all_data.append(df_median)
+            labels.append('Median')
+            color_choices.append('red')
 
         # Create a new figure and axis for the box plot
         fig, ax = plt.subplots()
@@ -2050,7 +2096,7 @@ class NotebookUtilities:
     def update_order_by_options(self, change):
         # If * is selected, set all available columns as options
         if '*' in self.host_data_columns_dropdown.value:
-            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
+            all_columns = ['None', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
             self.order_by_dropdown.options = all_columns
         else:
             # Set the selected columns as options for order_by_dropdown
