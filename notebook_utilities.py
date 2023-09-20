@@ -46,10 +46,10 @@ class NotebookUtilities:
         self.time_units = widgets.Dropdown()
         self.time_value = widgets.IntText()
 
-        # ****************************** HOST DATA WIDGETS **********************************
+        # ****************************** HOST DATA SECTION **********************************
         banner_hosts_message = widgets.HTML("<h1>Query the Host Data Table</h1>")
         query_time_message_hosts = widgets.HTML(
-            f"<h4>Select start & end times (Max: <b>{self.MAX_DAYS_HOSTS}</b> days).</h4>")
+            f"<h4>Select start and end times (Max: <b>{self.MAX_DAYS_HOSTS}</b> days).</h4>")
         query_cols_message = widgets.HTML("<h4>Select columns:</h4>")
         request_filters_message = widgets.HTML("<h4>Add data filters:</h4>")
         current_filters_message = widgets.HTML("<h4>Active filters:</h4>")
@@ -96,7 +96,7 @@ class NotebookUtilities:
         )
         self.distinct_checkbox = widgets.Checkbox(
             value=False,
-            description='Distinct',
+            description='Select Distinct',
             disabled=False
         )
         self.order_by_dropdown = widgets.Dropdown(
@@ -132,7 +132,6 @@ class NotebookUtilities:
         self.distinct_checkbox.observe(self.on_distinct_checkbox_change)
         self.order_by_dropdown.observe(self.on_order_by_dropdown_change)
         self.order_by_direction_dropdown.observe(self.on_order_by_dropdown_change)
-        # observe host_data_columns_dropdown changes
         self.host_data_columns_dropdown.observe(self.on_columns_changed, names='value')
         self.host_data_columns_dropdown.observe(self.update_order_by_options, names='value')
         self.host_data_columns_dropdown.observe(self.update_in_values_options, names='value')
@@ -182,11 +181,10 @@ class NotebookUtilities:
             self.output_hosts
         ])
 
-        # ****************************** JOB DATA WIDGETS **********************************
+        # ****************************** JOB DATA SECTION **********************************
         banner_jobs = widgets.HTML("<h1>Query the Job Data Table</h1>")
         query_time_message_jobs = widgets.HTML(
-            f"<h4>Please select the start and end times for your query. Max of <b>{self.MAX_DAYS_JOBS}</b> days "
-            f"per query.</h4>")
+            f"<h4>Select start and end times (Max: <b>{self.MAX_DAYS_JOBS}</b> days).</h4>")
         self.job_data_columns_dropdown = widgets.SelectMultiple(
             options=['*', 'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
                      'nhosts',
@@ -194,7 +192,7 @@ class NotebookUtilities:
                      'host_list'],
             value=['*'], description='Columns:'
         )
-        self.columns_dropdown_jobs = widgets.Dropdown(
+        self.data_filtering_cols_dropdown_jobs = widgets.Dropdown(
             options=['jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs', 'nhosts',
                      'ncores',
                      'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode', 'host_list'],
@@ -228,9 +226,48 @@ class NotebookUtilities:
         self.condition_list_jobs = widgets.SelectMultiple(
             options=[], description='Conditions:'
         )
+        self.distinct_checkbox_jobs = widgets.Checkbox(
+            value=False,
+            description='Select Distinct',
+            disabled=False
+        )
+        self.limit_input_jobs = widgets.IntText(
+            value=0,
+            description='Limit Results:',
+            disabled=False
+        )
+        self.order_by_dropdown_jobs = widgets.Dropdown(
+            options=['None'] + [col for col in self.job_data_columns_dropdown.options if col != "*"],
+            value='None',
+            description='Order By:'
+        )
+        self.order_by_direction_dropdown_jobs = widgets.Dropdown(
+            options=['ASC', 'DESC'],
+            value='ASC',
+            description='Direction:'
+        )
+        self.in_values_dropdown_jobs = widgets.Dropdown(
+            options=['None'] + [col for col in self.job_data_columns_dropdown.options if col != "*"],
+            value='None',
+            description='IN Column:'
+        )
+
+        self.in_values_textarea_jobs = widgets.Textarea(
+            value='',
+            placeholder='Enter values separated by commas',
+            description='IN values:',
+            disabled=False
+        )
 
         # Attach the update function to the 'columns_dropdown' widget
-        self.columns_dropdown_jobs.observe(self.update_value_input_jobs, names='value')
+        self.data_filtering_cols_dropdown_jobs.observe(self.observer_data_filtering_cols_dropdown_jobs, names='value')
+        self.job_data_columns_dropdown.observe(self.observer_job_data_columns_dropdown, names='value')
+        self.distinct_checkbox_jobs.observe(self.on_distinct_hosts_checkbox_change)
+        self.order_by_dropdown_jobs.observe(self.observer_order_by_dropdowns)
+        self.order_by_direction_dropdown_jobs.observe(self.observer_order_by_dropdowns)
+        self.limit_input_jobs.observe(self.observer_limit_input_jobs)
+        self.in_values_dropdown_jobs.observe(self.observer_in_values_jobs)
+        self.in_values_textarea_jobs.observe(self.observer_in_values_jobs)
 
         # Container to hold the value input widget
         self.value_input_container_jobs = widgets.HBox([self.value_input_jobs])
@@ -241,7 +278,7 @@ class NotebookUtilities:
         self.add_condition_button_jobs.on_click(self.add_condition_jobs)
         self.remove_condition_button_jobs.on_click(self.remove_condition_jobs)
         condition_buttons_jobs = widgets.HBox(
-            [self.add_condition_button_jobs, self.remove_condition_button_jobs])  # HBox for the buttons
+            [self.add_condition_button_jobs, self.remove_condition_button_jobs])
 
         # Group the widgets for "jobs" into another VBox
         jobs_group = widgets.VBox([
@@ -252,8 +289,17 @@ class NotebookUtilities:
             self.validate_button_jobs,
             query_cols_message,
             self.job_data_columns_dropdown,
+            self.distinct_checkbox_jobs,
+            order_by_message,
+            self.order_by_dropdown_jobs,
+            self.order_by_direction_dropdown_jobs,
+            limit_message,
+            self.limit_input_jobs,
+            in_values_message,
+            self.in_values_dropdown_jobs,
+            self.in_values_textarea_jobs,
             request_filters_message,
-            self.columns_dropdown_jobs,
+            self.data_filtering_cols_dropdown_jobs,
             self.operators_dropdown_jobs,
             self.value_input_container_jobs,
             condition_buttons_jobs,
@@ -265,6 +311,7 @@ class NotebookUtilities:
             self.output_jobs
         ])
 
+        # ****************************** COMBINED SECTION **********************************
         # Use GridBox to place the two VBox widgets side by side
         grid = widgets.GridBox(
             children=[hosts_group, jobs_group],
@@ -337,7 +384,7 @@ class NotebookUtilities:
             print(f"Current SQL query:\n{query, params}")
             self.host_data_sql_query = query, params
 
-    def update_value_input_jobs(self, change):
+    def observer_data_filtering_cols_dropdown_jobs(self, change):
         """
         Updates the input widget based on the changed column selection for job data.
 
@@ -369,6 +416,19 @@ class NotebookUtilities:
         else:
             value_input = widgets.Text(description='Value:')
         self.value_input_container_jobs.children = [value_input]
+
+    def observer_job_data_columns_dropdown(self, change):
+        # If * is selected, set all available columns as options
+        if '*' in self.job_data_columns_dropdown.value:
+            all_job_cols = [col for col in self.job_data_columns_dropdown.options if col != "*"]
+            self.order_by_dropdown_jobs.options = all_job_cols
+            self.in_values_dropdown_jobs.options = all_job_cols
+        else:
+            # Set the selected columns as options for order_by_dropdown
+            options = ['None'] + list(self.job_data_columns_dropdown.value)
+            self.order_by_dropdown_jobs.options = options
+            self.in_values_dropdown_jobs.options = options
+        self.display_query_jobs()
 
     def add_condition_jobs(self, b):
         """
@@ -402,7 +462,7 @@ class NotebookUtilities:
             return
         with self.error_output_jobs:
             clear_output(wait=True)
-            column = self.columns_dropdown_jobs.value
+            column = self.data_filtering_cols_dropdown_jobs.value
             value_widget = self.value_input_container_jobs.children[0]
             if isinstance(value_widget, widgets.Dropdown):
                 value = value_widget.value
@@ -786,11 +846,24 @@ class NotebookUtilities:
         if change['name'] == 'value':  # Check if the checkbox is checked
             self.display_query_hosts()
 
+    def on_distinct_hosts_checkbox_change(self, change):
+        """
+        Callback function to be executed when the value of distinct_hosts_checkbox changes.
+
+        Parameters:
+        :param change: Contains information about the change.
+        """
+        if change['name'] == 'value':  # Check if the checkbox is checked
+            self.display_query_jobs()
+
     def on_order_by_dropdown_change(self, change):
         # Check if the change is due to a new value being selected in the dropdown
         if change['type'] == 'change' and change['name'] == 'value':
             # Display the updated SQL query
             self.display_query_hosts()
+
+    def observer_order_by_dropdowns(self, change):
+        self.display_query_jobs()
 
     def on_group_by_changed(self, change):
         if change['new'] != 'None':
@@ -1291,10 +1364,8 @@ class NotebookUtilities:
                  second element is a list containing the parameter values to be used in the query.
         """
         valid_columns = {'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
-                         'nhosts',
-                         'ncores', 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode',
-                         'host_list',
-                         '*'}
+                         'nhosts', 'ncores', 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode',
+                         'host_list', '*'}
         selected_columns = job_data_columns_dropdown
 
         # Validate that the selected columns are all in the set of valid columns
@@ -1303,21 +1374,43 @@ class NotebookUtilities:
 
         selected_columns_str = ', '.join(selected_columns)
         table_name = 'job_data'
-        query = f"SELECT {selected_columns_str} FROM {table_name}"
 
+        if self.distinct_checkbox_jobs.value:
+            query = f"SELECT DISTINCT {selected_columns_str} FROM {table_name}"
+        else:
+            query = f"SELECT {selected_columns_str} FROM {table_name}"
+
+        # Initialize params and local conditions list
         params = []
-        where_clause = ""
-        if where_conditions_jobs:
-            where_clause = " AND ".join([f"{col} {op} %s" for col, op, _ in where_conditions_jobs])
-            params = [val for _, _, val in where_conditions_jobs]
+        local_conditions = [(col, op, "%s") for col, op, _ in where_conditions_jobs]
+
+        # Extract values and add to params
+        params.extend([val for _, _, val in where_conditions_jobs])
+
+        # Handle time validation
+        if validate_button_jobs == "Times Valid":
+            local_conditions.append(("start_time", "BETWEEN", "%s AND %s"))
+            params.extend([start_time_jobs, end_time_jobs])
+
+        # Handle IN condition
+        in_values = [value.strip() for value in self.in_values_textarea_jobs.value.split(',')]
+        if in_values and in_values[0]:  # Check if the first value is not empty
+            in_clause = ', '.join(['%s'] * len(in_values))
+            local_conditions.append((self.in_values_dropdown_jobs.value, "IN", f"({in_clause})"))
+            params.extend(in_values)
+
+        # Construct the WHERE clause
+        if local_conditions:
+            where_clause = " AND ".join([f"{col} {op} {val}" for col, op, val in local_conditions])
             query += f" WHERE {where_clause}"
 
-        if validate_button_jobs == "Times Valid":
-            if where_conditions_jobs:
-                query += f" AND start_time BETWEEN %s AND %s"
-            else:
-                query += f" WHERE start_time BETWEEN %s AND %s"
-            params += [start_time_jobs, end_time_jobs]
+        # Handle ORDER BY
+        if self.order_by_dropdown_jobs.value != 'None':
+            query += f" ORDER BY {self.order_by_dropdown_jobs.value} {self.order_by_direction_dropdown_jobs.value}"
+
+        # Handle LIMIT
+        if self.limit_input_jobs.value > 0:
+            query += f" LIMIT {self.limit_input_jobs.value}"
 
         return query, params
 
@@ -1750,10 +1843,12 @@ class NotebookUtilities:
                  from the input DataFrame, and the y-axis represents the estimated probability density. The title of
                  the plot is 'Probability Density Function (PDF)'.
         """
-        time_series_df = ts_df.dropna()
-        sns.histplot(time_series_df['value'], kde=True)
-        plt.title('Probability Density Function (PDF)')
-        plt.show()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            time_series_df = ts_df.dropna()
+            sns.histplot(time_series_df['value'], kde=True)
+            plt.title('Probability Density Function (PDF)')
+            plt.show()
 
     def plot_cdf(self, ts_df: pd.DataFrame):
         """
@@ -1769,10 +1864,12 @@ class NotebookUtilities:
                  input DataFrame, and the y-axis represents the cumulative frequency. The title of the plot is
                  'Cumulative Distribution Function (CDF)'.
         """
-        time_series_df = ts_df.dropna()
-        sns.histplot(time_series_df['value'], cumulative=True, element="step", fill=False)
-        plt.title('Cumulative Distribution Function (CDF)')
-        plt.show()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            time_series_df = ts_df.dropna()
+            sns.histplot(time_series_df['value'], cumulative=True, element="step", fill=False)
+            plt.title('Cumulative Distribution Function (CDF)')
+            plt.show()
 
     def plot_data_points_outside_threshold(self, ratio_threshold_value, ts_df: pd.DataFrame):
         """
@@ -2080,3 +2177,12 @@ class NotebookUtilities:
         else:
             # Set the selected columns as options for order_by_dropdown
             self.in_values_dropdown.options = ['None'] + list(self.host_data_columns_dropdown.value)
+
+    def observer_limit_input_jobs(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            if self.limit_input_jobs.value > 0:
+                self.display_query_jobs()
+
+    def observer_in_values_jobs(self, change):
+        if change['name'] == 'value' and change['type'] == 'change':
+            self.display_query_jobs()
