@@ -218,21 +218,19 @@ class NotebookUtilities:
 
     def attach_host_data_observers(self):
         # Observers
-        self.columns_dropdown_hosts.observe(self.update_value_input_hosts, names='value')
-        self.distinct_checkbox.observe(self.on_distinct_checkbox_change)
-        self.order_by_dropdown.observe(self.on_order_by_dropdown_change)
-        self.order_by_direction_dropdown.observe(self.on_order_by_dropdown_change)
-        self.host_data_columns_dropdown.observe(self.on_columns_changed, names='value')
-        self.host_data_columns_dropdown.observe(self.update_order_by_options, names='value')
-        self.host_data_columns_dropdown.observe(self.update_in_values_options, names='value')
-        self.limit_input.observe(self.on_limit_input_change)
-        self.in_values_dropdown.observe(self.on_in_values_dropdown_change)
-        self.in_values_textarea.observe(self.in_values_text_area_change)
+        self.columns_dropdown_hosts.observe(self.observer_columns_dropdown_hosts, names='value')
+        self.distinct_checkbox.observe(self.observer_distinct_checkbox)
+        self.order_by_dropdown.observe(self.observer_order_by_dropdown)
+        self.order_by_direction_dropdown.observe(self.observer_order_by_dropdown)
+        self.host_data_columns_dropdown.observe(self.observer_host_data_columns_dropdown, names='value')
+        self.limit_input.observe(self.observe_limit_input)
+        self.in_values_dropdown.observe(self.observe_in_values_dropdown)
+        self.in_values_textarea.observe(self.observe_in_values_textarea)
         # Button events
         self.validate_button_hosts.on_click(self.on_button_clicked_hosts)
         self.execute_button_hosts.on_click(self.on_execute_button_clicked_hosts)
-        self.add_condition_button_hosts.on_click(self.add_condition_hosts)
-        self.remove_condition_button_hosts.on_click(self.remove_condition_hosts)
+        self.add_condition_button_hosts.on_click(self.on_add_condition_button_hosts_clicked)
+        self.remove_condition_button_hosts.on_click(self.on_remove_condition_button_hosts_clicked)
 
     def attach_job_data_observers(self):
         # Observers
@@ -486,7 +484,7 @@ class NotebookUtilities:
                                                     self.where_conditions_jobs]
                 self.display_query_jobs()
 
-    def add_condition_hosts(self, b):
+    def on_add_condition_button_hosts_clicked(self, b):
         """
         Adds a new condition for filtering the host data based on user input.
 
@@ -570,7 +568,7 @@ class NotebookUtilities:
                                                 self.where_conditions_jobs]
             self.display_query_jobs()
 
-    def remove_condition_hosts(self, b):
+    def on_remove_condition_button_hosts_clicked(self, b):
         """
         Removes specified conditions from the filtering criteria for host data.
 
@@ -842,7 +840,7 @@ class NotebookUtilities:
         else:
             self.host_data_sql_query = self.host_data_sql_query.replace("ORDER BY", f"ORDER BY {change['new']}")
 
-    def on_distinct_checkbox_change(self, change):
+    def observer_distinct_checkbox(self, change):
         """
         Callback function to be executed when the value of distinct_checkbox changes.
 
@@ -862,7 +860,7 @@ class NotebookUtilities:
         if change['name'] == 'value':  # Check if the checkbox is checked
             self.display_query_jobs()
 
-    def on_order_by_dropdown_change(self, change):
+    def observer_order_by_dropdown(self, change):
         # Check if the change is due to a new value being selected in the dropdown
         if change['type'] == 'change' and change['name'] == 'value':
             # Display the updated SQL query
@@ -884,7 +882,7 @@ class NotebookUtilities:
         # You might want to check if values are valid for the selected column here
         self.display_query_hosts()
 
-    def update_value_input_hosts(self, change):
+    def observer_columns_dropdown_hosts(self, change):
         if change['new'] == 'unit':
             self.value_input_hosts = widgets.Dropdown(
                 options=['CPU %', 'GPU %', 'GB:memused', 'GB:memused_minus_diskcache', 'GB/s', 'MB/s'],
@@ -1513,9 +1511,17 @@ class NotebookUtilities:
         except NameError:
             print("ERROR: Please make sure to run the previous notebook cell before executing this one.")
 
-    def on_columns_changed(self, change):
-        if change['name'] == 'value' and change['type'] == 'change':
-            self.display_query_hosts()
+    def observer_host_data_columns_dropdown(self, change):
+        if '*' in self.host_data_columns_dropdown.value:
+            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
+            self.in_values_dropdown.options = all_columns
+            self.order_by_dropdown.options = all_columns
+        else:
+            # Set the selected columns as options for order_by_dropdown
+            options = ['None'] + list(self.host_data_columns_dropdown.value)
+            self.order_by_dropdown.options = options
+            self.in_values_dropdown.options = options
+        self.display_query_hosts()
 
     def on_host_list_changed(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
@@ -2153,36 +2159,18 @@ class NotebookUtilities:
         except Exception as e:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
 
-    def on_limit_input_change(self, change):
+    def observe_limit_input(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
             if self.limit_input.value > 0:
                 self.display_query_hosts()
 
-    def update_order_by_options(self, change):
-        # If * is selected, set all available columns as options
-        if '*' in self.host_data_columns_dropdown.value:
-            all_columns = ['None', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
-            self.order_by_dropdown.options = all_columns
-        else:
-            # Set the selected columns as options for order_by_dropdown
-            self.order_by_dropdown.options = ['None'] + list(self.host_data_columns_dropdown.value)
-
-    def in_values_text_area_change(self, change):
+    def observe_in_values_textarea(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
             self.display_query_hosts()
 
-    def on_in_values_dropdown_change(self, change):
+    def observe_in_values_dropdown(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
             self.display_query_hosts()
-
-    def update_in_values_options(self, change):
-        # If * is selected, set all available columns as options
-        if '*' in self.host_data_columns_dropdown.value:
-            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
-            self.in_values_dropdown.options = all_columns
-        else:
-            # Set the selected columns as options for order_by_dropdown
-            self.in_values_dropdown.options = ['None'] + list(self.host_data_columns_dropdown.value)
 
     def observer_limit_input_jobs(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
