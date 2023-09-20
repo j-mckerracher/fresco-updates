@@ -20,7 +20,16 @@ import ipywidgets as widgets
 
 class NotebookUtilities:
     def __init__(self):
-        # Non widget variables
+        self.init_non_widget_variables()
+        self.init_common_widgets()
+        self.initialize_host_data_widgets()
+        self.initialize_job_data_widgets()
+        self.initialize_stats_widgets()
+        self.attach_host_data_observers()
+        self.attach_job_data_observers()
+        self.group_and_display_widgets()
+
+    def init_non_widget_variables(self):
         self.where_conditions_values = []
         self.where_conditions_jobs = []
         self.time_window_valid_jobs = False
@@ -33,29 +42,21 @@ class NotebookUtilities:
         self.time_series_df = pd.DataFrame()
         self.value_input_hosts = ""
 
-        # Widgets
+    def init_common_widgets(self):
+        self.query_cols_message = widgets.HTML("<h4>Select columns:</h4>")
+        self.request_filters_message = widgets.HTML("<h4>Add data filters:</h4>")
+        self.current_filters_message = widgets.HTML("<h4>Active filters:</h4>")
+        self.order_by_message = widgets.HTML("<h4>Choose sort column and direction:</h4>")
+        self.limit_message = widgets.HTML("<h4>Set results limit:</h4>")
+        self.in_values_message = widgets.HTML("<h4>Enter IN clause values:</h4>")
+
+    def initialize_host_data_widgets(self):
         self.error_output_hosts = widgets.Output()
-        self.output_jobs = widgets.Output()
-        self.query_output_jobs = widgets.Output()
-        self.error_output_jobs = widgets.Output()
         self.output_hosts = widgets.Output()
         self.query_output_hosts = widgets.Output()
-        self.stats = widgets.SelectMultiple()
-        self.ratio_threshold = widgets.IntText()
-        self.interval_type = widgets.Dropdown()
-        self.time_units = widgets.Dropdown()
-        self.time_value = widgets.IntText()
-
-        # ****************************** HOST DATA SECTION **********************************
-        banner_hosts_message = widgets.HTML("<h1>Query the Host Data Table</h1>")
-        query_time_message_hosts = widgets.HTML(
+        self.banner_hosts_message = widgets.HTML("<h1>Query the Host Data Table</h1>")
+        self.query_time_message_hosts = widgets.HTML(
             f"<h4>Select start and end times (Max: <b>{self.MAX_DAYS_HOSTS}</b> days).</h4>")
-        query_cols_message = widgets.HTML("<h4>Select columns:</h4>")
-        request_filters_message = widgets.HTML("<h4>Add data filters:</h4>")
-        current_filters_message = widgets.HTML("<h4>Active filters:</h4>")
-        order_by_message = widgets.HTML("<h4>Choose sort column and direction:</h4>")
-        limit_message = widgets.HTML("<h4>Set results limit:</h4>")
-        in_values_message = widgets.HTML("<h4>Enter IN clause values:</h4>")
         self.host_data_columns_dropdown = widgets.SelectMultiple(
             options=['*', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc'], value=['*'],
             description='Columns:'
@@ -127,63 +128,12 @@ class NotebookUtilities:
             disabled=False
         )
 
-        # Attach the update function to the 'columns_dropdown' widget
-        self.columns_dropdown_hosts.observe(self.update_value_input_hosts, names='value')
-        self.distinct_checkbox.observe(self.on_distinct_checkbox_change)
-        self.order_by_dropdown.observe(self.on_order_by_dropdown_change)
-        self.order_by_direction_dropdown.observe(self.on_order_by_dropdown_change)
-        self.host_data_columns_dropdown.observe(self.on_columns_changed, names='value')
-        self.host_data_columns_dropdown.observe(self.update_order_by_options, names='value')
-        self.host_data_columns_dropdown.observe(self.update_in_values_options, names='value')
-        self.limit_input.observe(self.on_limit_input_change)
-        self.in_values_dropdown.observe(self.on_in_values_dropdown_change)
-        self.in_values_textarea.observe(self.in_values_text_area_change)
-
-        # Container to hold the value input widget
-        self.value_input_container_hosts = widgets.HBox([self.value_input_hosts])
-
-        # Button events.
-        self.validate_button_hosts.on_click(self.on_button_clicked_hosts)
-        self.execute_button_hosts.on_click(self.on_execute_button_clicked_hosts)
-        self.add_condition_button_hosts.on_click(self.add_condition_hosts)
-        self.remove_condition_button_hosts.on_click(self.remove_condition_hosts)
-
-        condition_buttons = widgets.HBox([self.add_condition_button_hosts, self.remove_condition_button_hosts])
-
-        # Group the widgets for "hosts" into a VBox
-        hosts_group = widgets.VBox([
-            banner_hosts_message,
-            query_time_message_hosts,
-            self.start_time_hosts,
-            self.end_time_hosts,
-            self.validate_button_hosts,
-            query_cols_message,
-            self.host_data_columns_dropdown,
-            self.distinct_checkbox,
-            order_by_message,
-            self.order_by_dropdown,
-            self.order_by_direction_dropdown,
-            limit_message,
-            self.limit_input,
-            in_values_message,
-            self.in_values_dropdown,
-            self.in_values_textarea,
-            request_filters_message,
-            self.columns_dropdown_hosts,
-            self.operators_dropdown_hosts,
-            self.value_input_container_hosts,
-            condition_buttons,
-            current_filters_message,
-            self.condition_list_hosts,
-            self.error_output_hosts,
-            self.execute_button_hosts,
-            self.query_output_hosts,
-            self.output_hosts
-        ])
-
-        # ****************************** JOB DATA SECTION **********************************
-        banner_jobs = widgets.HTML("<h1>Query the Job Data Table</h1>")
-        query_time_message_jobs = widgets.HTML(
+    def initialize_job_data_widgets(self):
+        self.output_jobs = widgets.Output()
+        self.query_output_jobs = widgets.Output()
+        self.error_output_jobs = widgets.Output()
+        self.banner_jobs = widgets.HTML("<h1>Query the Job Data Table</h1>")
+        self.query_time_message_jobs = widgets.HTML(
             f"<h4>Select start and end times (Max: <b>{self.MAX_DAYS_JOBS}</b> days).</h4>")
         self.job_data_columns_dropdown = widgets.SelectMultiple(
             options=['*', 'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
@@ -259,7 +209,33 @@ class NotebookUtilities:
             disabled=False
         )
 
-        # Attach the update function to the 'columns_dropdown' widget
+    def initialize_stats_widgets(self):
+        self.stats = widgets.SelectMultiple()
+        self.ratio_threshold = widgets.IntText()
+        self.interval_type = widgets.Dropdown()
+        self.time_units = widgets.Dropdown()
+        self.time_value = widgets.IntText()
+
+    def attach_host_data_observers(self):
+        # Observers
+        self.columns_dropdown_hosts.observe(self.update_value_input_hosts, names='value')
+        self.distinct_checkbox.observe(self.on_distinct_checkbox_change)
+        self.order_by_dropdown.observe(self.on_order_by_dropdown_change)
+        self.order_by_direction_dropdown.observe(self.on_order_by_dropdown_change)
+        self.host_data_columns_dropdown.observe(self.on_columns_changed, names='value')
+        self.host_data_columns_dropdown.observe(self.update_order_by_options, names='value')
+        self.host_data_columns_dropdown.observe(self.update_in_values_options, names='value')
+        self.limit_input.observe(self.on_limit_input_change)
+        self.in_values_dropdown.observe(self.on_in_values_dropdown_change)
+        self.in_values_textarea.observe(self.in_values_text_area_change)
+        # Button events
+        self.validate_button_hosts.on_click(self.on_button_clicked_hosts)
+        self.execute_button_hosts.on_click(self.on_execute_button_clicked_hosts)
+        self.add_condition_button_hosts.on_click(self.add_condition_hosts)
+        self.remove_condition_button_hosts.on_click(self.remove_condition_hosts)
+
+    def attach_job_data_observers(self):
+        # Observers
         self.data_filtering_cols_dropdown_jobs.observe(self.observer_data_filtering_cols_dropdown_jobs, names='value')
         self.job_data_columns_dropdown.observe(self.observer_job_data_columns_dropdown, names='value')
         self.distinct_checkbox_jobs.observe(self.on_distinct_hosts_checkbox_change)
@@ -268,42 +244,73 @@ class NotebookUtilities:
         self.limit_input_jobs.observe(self.observer_limit_input_jobs)
         self.in_values_dropdown_jobs.observe(self.observer_in_values_jobs)
         self.in_values_textarea_jobs.observe(self.observer_in_values_jobs)
-
-        # Container to hold the value input widget
-        self.value_input_container_jobs = widgets.HBox([self.value_input_jobs])
-
         # Button events
         self.validate_button_jobs.on_click(self.on_button_clicked_jobs)
         self.execute_button_jobs.on_click(self.on_execute_button_clicked_jobs)
         self.add_condition_button_jobs.on_click(self.add_condition_jobs)
         self.remove_condition_button_jobs.on_click(self.remove_condition_jobs)
-        condition_buttons_jobs = widgets.HBox(
-            [self.add_condition_button_jobs, self.remove_condition_button_jobs])
 
-        # Group the widgets for "jobs" into another VBox
+    def group_and_display_widgets(self):
+        # Host Data stuff
+        self.value_input_container_hosts = widgets.HBox([self.value_input_hosts])
+        self.condition_buttons = widgets.HBox([self.add_condition_button_hosts, self.remove_condition_button_hosts])
+        hosts_group = widgets.VBox([
+            self.banner_hosts_message,
+            self.query_time_message_hosts,
+            self.start_time_hosts,
+            self.end_time_hosts,
+            self.validate_button_hosts,
+            self.query_cols_message,
+            self.host_data_columns_dropdown,
+            self.distinct_checkbox,
+            self.order_by_message,
+            self.order_by_dropdown,
+            self.order_by_direction_dropdown,
+            self.limit_message,
+            self.limit_input,
+            self.in_values_message,
+            self.in_values_dropdown,
+            self.in_values_textarea,
+            self.request_filters_message,
+            self.columns_dropdown_hosts,
+            self.operators_dropdown_hosts,
+            self.value_input_container_hosts,
+            self.condition_buttons,
+            self.current_filters_message,
+            self.condition_list_hosts,
+            self.error_output_hosts,
+            self.execute_button_hosts,
+            self.query_output_hosts,
+            self.output_hosts
+        ])
+
+        # Job Data stuff
+        self.value_input_container_jobs = widgets.HBox([self.value_input_jobs])
+        self.condition_buttons_jobs = widgets.HBox(
+            [self.add_condition_button_jobs, self.remove_condition_button_jobs])
         jobs_group = widgets.VBox([
-            banner_jobs,
-            query_time_message_jobs,
+            self.banner_jobs,
+            self.query_time_message_jobs,
             self.start_time_jobs,
             self.end_time_jobs,
             self.validate_button_jobs,
-            query_cols_message,
+            self.query_cols_message,
             self.job_data_columns_dropdown,
             self.distinct_checkbox_jobs,
-            order_by_message,
+            self.order_by_message,
             self.order_by_dropdown_jobs,
             self.order_by_direction_dropdown_jobs,
-            limit_message,
+            self.limit_message,
             self.limit_input_jobs,
-            in_values_message,
+            self.in_values_message,
             self.in_values_dropdown_jobs,
             self.in_values_textarea_jobs,
-            request_filters_message,
+            self.request_filters_message,
             self.data_filtering_cols_dropdown_jobs,
             self.operators_dropdown_jobs,
             self.value_input_container_jobs,
-            condition_buttons_jobs,
-            current_filters_message,
+            self. condition_buttons_jobs,
+            self.current_filters_message,
             self.condition_list_jobs,
             self.error_output_jobs,
             self.execute_button_jobs,
@@ -311,17 +318,16 @@ class NotebookUtilities:
             self.output_jobs
         ])
 
-        # ****************************** COMBINED SECTION **********************************
-        # Use GridBox to place the two VBox widgets side by side
+        # Combine in GridBox to place the two VBox widgets side by side
         grid = widgets.GridBox(
             children=[hosts_group, jobs_group],
             layout=widgets.Layout(
                 width='100%',
-                grid_template_columns='50% 50%',  # Two columns, each taking up 50% of the width
-                # grid_template_rows='auto',  # One row, height determined by content
+                grid_template_columns='50% 50%',
             )
         )
 
+        # Display
         display(grid)
 
     def get_time_series_df(self):
@@ -420,7 +426,7 @@ class NotebookUtilities:
     def observer_job_data_columns_dropdown(self, change):
         # If * is selected, set all available columns as options
         if '*' in self.job_data_columns_dropdown.value:
-            all_job_cols = [col for col in self.job_data_columns_dropdown.options if col != "*"]
+            all_job_cols = ['None'] + [col for col in self.job_data_columns_dropdown.options if col != "*"]
             self.order_by_dropdown_jobs.options = all_job_cols
             self.in_values_dropdown_jobs.options = all_job_cols
         else:
