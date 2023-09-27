@@ -11,9 +11,9 @@ from classes.plotting_manager import PlottingManager
 
 class BaseWidgetManager:
     def __init__(self):
-        self.data_processor = DataProcessor()
+        self.data_processor = DataProcessor(self)
         self.db_service = DatabaseManager()
-        self.plotting_service = PlottingManager()
+        self.plotting_service = PlottingManager(self)
         self.init_non_widget_variables()
         self.init_common_widgets()
         self.initialize_host_data_widgets()

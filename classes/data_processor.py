@@ -7,8 +7,8 @@ import os
 
 
 class DataProcessor:
-    def __init__(self, ):
-        pass
+    def __init__(self, base_widget_manager):
+        self.base_widget_manager = base_widget_manager
 
     def remove_special_chars(self, s: str) -> str:
         """
@@ -39,7 +39,6 @@ class DataProcessor:
         :return: An error message string if the value does not adhere to the predefined format for the job id.
                  Returns None if the value is valid.
         """
-
         jobs = value.split(',')
         for job in jobs:
             job = job.strip().upper()  # Remove any leading or trailing whitespace
@@ -269,25 +268,6 @@ class DataProcessor:
             return "Error: For 'value', the value must be a number."
         return None
 
-    def validate_jid(self, value):
-        """
-        Validates the provided job id (jid) value. The function checks if the value adheres to the predefined format.
-
-        Parameters:
-        :param value: A string containing the job id that needs to be validated.
-
-        Returns:
-        :return: An error message string if the value does not adhere to the predefined format for the job id.
-                 Returns None if the value is valid.
-        """
-        jobs = value.split(',')
-        for job in jobs:
-            job = job.strip().upper()  # Remove any leading or trailing whitespace
-            if not re.match(r'^JOB\d+$', job):
-                return "Error: For 'jid', value must be a comma-separated list of strings starting with 'JOB' " \
-                       "followed by one or more digits."
-        return None
-
     def validate_in_input(self, values_str):
         """
         Validates and parses the comma-separated string for the IN SQL functionality.
@@ -308,7 +288,7 @@ class DataProcessor:
         table_name = 'host_data'
 
         # Handle DISTINCT
-        if self.distinct_checkbox.value:
+        if self.base_widget_manager.distinct_checkbox.value:
             query = f"SELECT DISTINCT {selected_columns} FROM {table_name}"
         else:
             query = f"SELECT {selected_columns} FROM {table_name}"
@@ -318,7 +298,7 @@ class DataProcessor:
         local_conditions = where_conditions_hosts.copy()  # Start with the conditions passed in
 
         # Add the values from where_conditions_values to params
-        params.extend(self.where_conditions_values)
+        params.extend(self.base_widget_manager.where_conditions_values)
 
         # Handle time validation
         if validate_button_hosts == "Times Valid":
@@ -326,10 +306,10 @@ class DataProcessor:
             params.extend([start_time_hosts, end_time_hosts])
 
         # Handle IN condition
-        in_values = [value.strip() for value in self.in_values_textarea.value.split(',')]
+        in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea.value.split(',')]
         if in_values and in_values[0]:  # Check if the first value is not empty
             in_clause = ', '.join(['%s'] * len(in_values))
-            local_conditions.append((self.in_values_dropdown.value, "IN", f"({in_clause})"))
+            local_conditions.append((self.base_widget_manager.in_values_dropdown.value, "IN", f"({in_clause})"))
             params.extend(in_values)
 
         # Construct the WHERE clause
@@ -338,12 +318,12 @@ class DataProcessor:
             query += f" WHERE {where_clause}"
 
         # Handle ORDER BY
-        if self.order_by_dropdown.value != 'None':
-            query += f" ORDER BY {self.order_by_dropdown.value} {self.order_by_direction_dropdown.value}"
+        if self.base_widget_manager.order_by_dropdown.value != 'None':
+            query += f" ORDER BY {self.base_widget_manager.order_by_dropdown.value} {self.base_widget_manager.order_by_direction_dropdown.value}"
 
         # Handle LIMIT
-        if self.limit_input.value > 0:
-            query += f" LIMIT {self.limit_input.value}"
+        if self.base_widget_manager.limit_input.value > 0:
+            query += f" LIMIT {self.base_widget_manager.limit_input.value}"
 
         return query, params
 
@@ -380,7 +360,7 @@ class DataProcessor:
         selected_columns_str = ', '.join(selected_columns)
         table_name = 'job_data'
 
-        if self.distinct_checkbox_jobs.value:
+        if self.base_widget_manager.distinct_checkbox_jobs.value:
             query = f"SELECT DISTINCT {selected_columns_str} FROM {table_name}"
         else:
             query = f"SELECT {selected_columns_str} FROM {table_name}"
@@ -398,10 +378,10 @@ class DataProcessor:
             params.extend([start_time_jobs, end_time_jobs])
 
         # Handle IN condition
-        in_values = [value.strip() for value in self.in_values_textarea_jobs.value.split(',')]
+        in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea_jobs.value.split(',')]
         if in_values and in_values[0]:  # Check if the first value is not empty
             in_clause = ', '.join(['%s'] * len(in_values))
-            local_conditions.append((self.in_values_dropdown_jobs.value, "IN", f"({in_clause})"))
+            local_conditions.append((self.base_widget_manager.in_values_dropdown_jobs.value, "IN", f"({in_clause})"))
             params.extend(in_values)
 
         # Construct the WHERE clause
@@ -410,12 +390,12 @@ class DataProcessor:
             query += f" WHERE {where_clause}"
 
         # Handle ORDER BY
-        if self.order_by_dropdown_jobs.value != 'None':
-            query += f" ORDER BY {self.order_by_dropdown_jobs.value} {self.order_by_direction_dropdown_jobs.value}"
+        if self.base_widget_manager.order_by_dropdown_jobs.value != 'None':
+            query += f" ORDER BY {self.base_widget_manager.order_by_dropdown_jobs.value} {self.base_widget_manager.order_by_direction_dropdown_jobs.value}"
 
         # Handle LIMIT
-        if self.limit_input_jobs.value > 0:
-            query += f" LIMIT {self.limit_input_jobs.value}"
+        if self.base_widget_manager.limit_input_jobs.value > 0:
+            query += f" LIMIT {self.base_widget_manager.limit_input_jobs.value}"
 
         return query, params
 
@@ -510,13 +490,13 @@ class DataProcessor:
        Returns:
        :return: A pandas DataFrame with the specified columns removed.
        """
-        if not isinstance(self.time_series_df, pd.DataFrame):
+        if not isinstance(self.base_widget_manager.time_series_df, pd.DataFrame):
             raise ValueError("Input must be a pandas DataFrame.")
 
         columns_to_remove = ['type', 'diff', 'arc']
 
         try:
-            self.time_series_df.drop(columns=columns_to_remove, errors='ignore', inplace=True)
+            self.base_widget_manager.time_series_df.drop(columns=columns_to_remove, errors='ignore', inplace=True)
         except Exception as e:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
 
