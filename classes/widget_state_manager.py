@@ -8,8 +8,10 @@ from datetime import datetime
 class WidgetStateManager:
     def __init__(self, base_widget_manager):
         self.base_widget_manager = base_widget_manager
-        self.data_processor = DataProcessor()
+        self.data_processor = DataProcessor(base_widget_manager)
         self.db_service = DatabaseManager()
+        self.attach_host_data_observers()
+        self.attach_job_data_observers()
 
     def attach_host_data_observers(self):
         # Observers
@@ -24,18 +26,19 @@ class WidgetStateManager:
         self.base_widget_manager.in_values_textarea.observe(self.observe_in_values_textarea)
         # Button events
         self.base_widget_manager.validate_button_hosts.on_click(self.on_button_clicked_hosts)
-        self.base_widget_manager.execute_button_hosts.on_click(self.base_widget_manager.on_execute_button_clicked_hosts)
+        self.base_widget_manager.execute_button_hosts.on_click(self.on_execute_button_clicked_hosts)
         self.base_widget_manager.add_condition_button_hosts.on_click(self.on_add_condition_button_hosts_clicked)
         self.base_widget_manager.remove_condition_button_hosts.on_click(self.on_remove_condition_button_hosts_clicked)
 
     def attach_job_data_observers(self):
         # Observers
         self.base_widget_manager.data_filtering_cols_dropdown_jobs.observe(
-            self.observer_data_filtering_cols_dropdown_jobs, names='value')
-        self.base_widget_manager.job_data_columns_dropdown.observe(self.observer_job_data_columns_dropdown,
-                                                                   names='value')
-        self.base_widget_manager.distinct_checkbox_jobs.observe(
-            self.base_widget_manager.on_distinct_hosts_checkbox_change)
+            self.observer_data_filtering_cols_dropdown_jobs, names='value'
+        )
+        self.base_widget_manager.job_data_columns_dropdown.observe(
+            self.observer_job_data_columns_dropdown, names='value'
+        )
+        self.base_widget_manager.distinct_checkbox_jobs.observe(self.on_distinct_hosts_checkbox_change)
         self.base_widget_manager.order_by_dropdown_jobs.observe(self.observer_order_by_dropdowns)
         self.base_widget_manager.order_by_direction_dropdown_jobs.observe(self.observer_order_by_dropdowns)
         self.base_widget_manager.limit_input_jobs.observe(self.observer_limit_input_jobs)
@@ -247,7 +250,7 @@ class WidgetStateManager:
         with self.base_widget_manager.error_output_hosts:
             clear_output(wait=True)
             column = self.base_widget_manager.columns_dropdown_hosts.value
-            value = self.value_input_hosts.value
+            value = self.base_widget_manager.value_input_hosts.value
             if 'job' in value.casefold() or 'node' in value.casefold():
                 value = value.upper()
 
@@ -354,19 +357,19 @@ class WidgetStateManager:
         if self.base_widget_manager.end_time_jobs.value and self.base_widget_manager.start_time_jobs.value >= self.base_widget_manager.end_time_jobs.value:
             b.description = "Invalid Times"
             b.button_style = 'danger'
-            self.time_window_valid_jobs = False
+            self.base_widget_manager.time_window_valid_jobs = False
         elif self.base_widget_manager.start_time_jobs.value and self.base_widget_manager.end_time_jobs.value <= self.base_widget_manager.start_time_jobs.value:
             b.description = "Invalid Times"
             b.button_style = 'danger'
-            self.time_window_valid_jobs = False
+            self.base_widget_manager.time_window_valid_jobs = False
         elif time_difference.days > self.base_widget_manager.MAX_DAYS_JOBS:
             b.description = "Time Window Too Large"
             b.button_style = 'danger'
-            self.time_window_valid_jobs = False
+            self.base_widget_manager.time_window_valid_jobs = False
         else:
             b.description = "Times Valid"
             b.button_style = 'success'
-            self.time_window_valid_jobs = True
+            self.base_widget_manager.time_window_valid_jobs = True
             with self.base_widget_manager.error_output_jobs:  # Clear the error message if the time window is valid
                 clear_output(wait=True)
         self.base_widget_manager.display_query_jobs()
@@ -398,19 +401,19 @@ class WidgetStateManager:
         if self.base_widget_manager.end_time_hosts.value and self.base_widget_manager.start_time_hosts.value >= self.base_widget_manager.end_time_hosts.value:
             b.description = "Invalid Times"
             b.button_style = 'danger'
-            self.time_window_valid_hosts = False
+            self.base_widget_manager.time_window_valid_hosts = False
         elif self.base_widget_manager.start_time_hosts.value and self.base_widget_manager.end_time_hosts.value <= self.base_widget_manager.start_time_hosts.value:
             b.description = "Invalid Times"
             b.button_style = 'danger'
-            self.time_window_valid_hosts = False
+            self.base_widget_manager.time_window_valid_hosts = False
         elif time_difference.days > self.base_widget_manager.MAX_DAYS_HOSTS:
             b.description = "Time Window Too Large"
             b.button_style = 'danger'
-            self.time_window_valid_hosts = False
+            self.base_widget_manager.time_window_valid_hosts = False
         else:
             b.description = "Times Valid"
             b.button_style = 'success'
-            self.time_window_valid_hosts = True
+            self.base_widget_manager.time_window_valid_hosts = True
             with self.base_widget_manager.error_output_hosts:  # Clear the error message if the time window is valid
                 clear_output(wait=True)
         self.base_widget_manager.display_query_hosts()  # Display the current SQL query for hosts

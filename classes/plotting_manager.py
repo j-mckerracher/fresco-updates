@@ -6,9 +6,8 @@ import pandas as pd
 
 
 class PlottingManager:
-    def __init__(self):
-        self.data_processor = DataProcessor()
-        pass
+    def __init__(self, base_widget_manager):
+        self.data_processor = DataProcessor(base_widget_manager)
 
     def plot_correlation(self, correlations, ts_df):
         """
