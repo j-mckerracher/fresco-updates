@@ -445,7 +445,6 @@ class BaseWidgetManager:
                         titles=self.stats.value) for unit in units]
 
             tab.titles = units
-
             message_display = widgets.HTML(value="Initializing . . .")
             display(message_display)
 
@@ -589,7 +588,8 @@ class BaseWidgetManager:
                                                       self.end_time_jobs.value)
         with self.query_output_jobs:
             clear_output(wait=True)
-            print(f"Current SQL query:\n{query}\nParameters: {params}")
+            display(widgets.HTML("<h4>Current SQL query:</h4>"))
+            print(f"{query}\nParameters: {params}")
 
     def display_query_hosts(self):
         """
@@ -618,7 +618,8 @@ class BaseWidgetManager:
                                                    self.end_time_hosts.value)
         with self.query_output_hosts:
             clear_output(wait=True)
-            print(f"Current SQL query:\n{query, params}")
+            display(widgets.HTML("<h4>Current SQL query:</h4>"))
+            print(f"{query}\nParameters: {params}")
             self.host_data_sql_query = query, params
 
     def pearson_correlation(self):
@@ -630,8 +631,14 @@ class BaseWidgetManager:
             def on_button_click(button):
                 graph_output.clear_output()
                 with graph_output:
-                    with plt.style.context('fivethirtyeight'):
-                        display(self.plotting_service.plot_correlation(correlations.value, self.time_series_df))
+                    correlation_data = self.plotting_service.plot_correlation(correlations.value, self.time_series_df)
+                    # Added feedback based on the result of plot_correlation
+                    if correlation_data is None:
+                        print("Unable to calculate correlation for the selected metrics. Please check the data or "
+                              "select different metrics.")
+                    else:
+                        with plt.style.context('fivethirtyeight'):
+                            display(correlation_data)
 
             correlations = widgets.SelectMultiple(
                 options=['None', 'cpuuser', 'gpu_usage', 'nfs', 'block', 'memused', 'memused_minus_diskcache'],
