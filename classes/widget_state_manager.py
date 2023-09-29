@@ -84,7 +84,7 @@ class WidgetStateManager:
 
     def observer_host_data_columns_dropdown(self, change):
         if '*' in self.base_widget_manager.host_data_columns_dropdown.value:
-            all_columns = ['host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
+            all_columns = ['None', 'host', 'jid', 'type', 'event', 'unit', 'value', 'diff', 'arc']
             self.base_widget_manager.in_values_dropdown.options = all_columns
             self.base_widget_manager.order_by_dropdown.options = all_columns
         else:
@@ -105,7 +105,9 @@ class WidgetStateManager:
 
     def observe_in_values_dropdown(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
-            self.base_widget_manager.display_query_hosts()
+            val = self.base_widget_manager.in_values_dropdown.value
+            if val != 'None':
+                self.base_widget_manager.display_query_hosts()
 
     def observer_limit_input_jobs(self, change):
         if change['name'] == 'value' and change['type'] == 'change':
@@ -325,6 +327,9 @@ class WidgetStateManager:
             selected_conditions = list(self.base_widget_manager.condition_list_hosts.value)
             for condition in selected_conditions:
                 index = self.base_widget_manager.condition_list_hosts.options.index(condition)
+                # Remove the corresponding value from where_conditions_values
+                self.base_widget_manager.where_conditions_values.pop(index)
+                # Remove the condition from where_conditions_hosts
                 self.base_widget_manager.where_conditions_hosts.pop(index)
             self.base_widget_manager.condition_list_hosts.options = [f"{col} {op} '{val}'" for col, op, val in
                                                                      self.base_widget_manager.where_conditions_hosts]
@@ -453,11 +458,24 @@ class WidgetStateManager:
                     self.base_widget_manager.job_data_columns_dropdown.value,
                     self.base_widget_manager.validate_button_jobs.description,
                     self.base_widget_manager.start_time_jobs.value,
-                    self.base_widget_manager.end_time_jobs.value)
-                self.base_widget_manager.account_log_df = self.db_service.execute_sql_query_chunked(query,
-                                                                                                    self.base_widget_manager.account_log_df,
-                                                                                                    params=params)
-                print(f"\nResults for query: \n{query}\nParameters: {params}")
+                    self.base_widget_manager.end_time_jobs.value
+                )
+
+                self.base_widget_manager.account_log_df = self.db_service.execute_sql_query_chunked(
+                    query,
+                    self.base_widget_manager.account_log_df,
+                    params=params
+                )
+
+                # Check if the DataFrame is empty
+                if self.base_widget_manager.account_log_df.empty:
+                    no_data = widgets.HTML("<h4>No data found!</h4>")
+                    display(no_data)
+                    return
+
+                results = widgets.HTML("<h4>Results for query:</h4>")
+                display(results)
+                print(f"{query}\nParameters: {params}")
                 display(self.base_widget_manager.account_log_df)
 
                 # Code to give user the option to download the filtered data
@@ -523,10 +541,21 @@ class WidgetStateManager:
                     self.base_widget_manager.validate_button_hosts.description,
                     self.base_widget_manager.start_time_hosts.value,
                     self.base_widget_manager.end_time_hosts.value)
-                self.base_widget_manager.time_series_df = self.db_service.execute_sql_query_chunked(query,
-                                                                                                    self.base_widget_manager.time_series_df,
-                                                                                                    params=params)
-                print(f"\nResults for query: \n{self.base_widget_manager.host_data_sql_query}\nParameters: {params}")
+                self.base_widget_manager.time_series_df = self.db_service.execute_sql_query_chunked(
+                    query,
+                    self.base_widget_manager.time_series_df,
+                    params=params
+                )
+
+                # Check if the DataFrame is empty
+                if self.base_widget_manager.time_series_df.empty:
+                    no_data = widgets.HTML("<h4>No data found!</h4>")
+                    display(no_data)
+                    return  # Exit the function after printing the message
+
+                results = widgets.HTML("<h4>Results for query:</h4>")
+                display(results)
+                print(f"{query}\nParameters: {params}")
                 display(self.base_widget_manager.time_series_df)
 
                 # Code to give user the option to download the filtered data
