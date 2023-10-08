@@ -6,7 +6,7 @@ https://www.jupyter.fresco-hpc.org/
 ## Overview
 
 The purpose of this notebook is to allow the user to:
-- Extract filtered data from the Anvil database.
+- Extract filtered data from the FRESCO database.
 - Conduct statistical analyses on the filtered data.
 - Visualize the results of the analyses.
 
