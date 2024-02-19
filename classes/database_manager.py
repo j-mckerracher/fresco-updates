@@ -169,7 +169,7 @@ class DatabaseManager():
 
                         for chunk_number, chunk in enumerate(pd.read_sql(query, conn, params=params, chunksize=chunksize)):
                             # Convert the chunk to a CSV string and get its size in bytes
-                            csv_string = chunk.to_csv(index=False)
+                            csv_string = chunk.to_csv(index=True)
                             csv_size = len(csv_string.encode('utf-8'))
 
                             # Check if the size of the chunk plus the total space used so far is less than the available

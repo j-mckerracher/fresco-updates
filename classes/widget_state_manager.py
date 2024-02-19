@@ -541,6 +541,7 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
+                output_dir = "temp_output"
                 query, params = self.data_processor.construct_query_hosts(
                     self.base_widget_manager.where_conditions_hosts,
                     self.base_widget_manager.host_data_columns_dropdown.value,
@@ -548,9 +549,11 @@ class WidgetStateManager:
                     self.base_widget_manager.start_time_hosts.value,
                     self.base_widget_manager.end_time_hosts.value)
 
+                # Remove all files from the output directory
+                self.remove_all_files_from_directory(output_dir)
+
                 # run DB query and save to disk
                 file_prefix = datetime.now().strftime("%d-%b-%Y-%H-%M-%S-%f")  # current datetime to mS
-                output_dir = "temp_output"
                 self.db_service.execute_sql_query_and_stream_to_disk(
                     query,
                     output_dir,
@@ -564,34 +567,15 @@ class WidgetStateManager:
                     display(no_data)
                     return  # Exit the function after printing the message
 
-                # Remove all files from the output directory
-                self.remove_all_files_from_directory(output_dir)
-
                 # Start displaying the results
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
                 print(f"{query}\nParameters: {params}")
 
                 # display the query results
-                memory = self.get_percentage_of_available_memory(50)
-                print(f"Available memory: {memory} bytes")
-                total_size = int(memory * 1024)
-                print(f"Total size: {total_size} bytes")
-                timestamp_memory = 8  # bytes
-                string_memory = 50  # bytes
-                text_memory = 50  # bytes
-
-                # Calculate total memory usage per row
-                total_memory_per_row = timestamp_memory + 6 * string_memory + text_memory
-                print(f"Total memory usage per row: {total_memory_per_row} bytes")
-
-                # Calculate chunksize based on the total size and estimated memory usage per row
-                chunksize = int(total_size / total_memory_per_row)
-                print(f"Chunksize: {chunksize}")
 
                 # Iterate over all CSV files in the directory until total_size is reached
-                self.base_widget_manager.time_series_df = self.get_dataframe_from_csv_files(output_dir, total_size,
-                                                                                            chunksize)
+                self.base_widget_manager.time_series_df = self.get_dataframe_from_csv_files(output_dir)
 
                 # Display the results
                 print(f"Total memory usage: {sys.getsizeof(self.base_widget_manager.time_series_df)} bytes")
@@ -712,16 +696,29 @@ class WidgetStateManager:
         # Get the specified percentage of the available memory
         return available_memory * (percentage / 100)
 
+    def get_dataframe_from_csv_files(self, output_dir):
+        memory = self.get_percentage_of_available_memory(50)
+        # print(f"Available memory: {memory} bytes")
+        total_size = int(memory * 1024)
+        # print(f"Total size: {total_size} bytes")
+        timestamp_memory = 8  # bytes
+        string_memory = 50  # bytes
+        text_memory = 50  # bytes
 
-    def get_dataframe_from_csv_files(self, output_dir, total_size, chunksize):
+        # Calculate total memory usage per row
+        total_memory_per_row = timestamp_memory + 6 * string_memory + text_memory
+
+        # Calculate chunksize based on the total size and estimated memory usage per row
+        chunksize = int(total_size / total_memory_per_row)
+
         data_frame = pd.DataFrame()
 
         # Get the size of the DataFrame in memory
         df_memory_size = sys.getsizeof(data_frame)
-        print(f"Initial DataFrame memory size: {df_memory_size} bytes")
 
         # Iterate over all CSV files in the directory
         for filename in os.listdir(output_dir):
+            # print(f"file: {filename}")
             if filename.endswith(".csv"):
                 file_path = os.path.join(output_dir, filename)
                 # print(f"Processing file: {file_path}")
@@ -745,6 +742,6 @@ class WidgetStateManager:
                             f"DataFrame memory limit reached. Added only part of the chunk. New DataFrame memory size: {sys.getsizeof(data_frame)} bytes")
                         break
 
-        print(f"DataFrame number of rows: {len(data_frame)}")
-        print("Finished processing all files.")
+        # print(f"DataFrame number of rows: {len(data_frame)}")
+        # print("Finished processing all files.")
         return data_frame
