@@ -5,6 +5,7 @@ from psycopg2 import OperationalError
 import warnings
 import pandas as pd
 from tqdm.notebook import tqdm
+import utilities.memory_utils as mem_utils
 
 
 class DatabaseManager():
@@ -121,5 +122,70 @@ class DatabaseManager():
 
                     pbar.close()
                     return pd.concat(chunks, ignore_index=True)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    def execute_sql_query_and_stream_to_disk(self, query, output_directory, file_prefix, params=None,
+                                             target_num_chunks=25000):
+        """
+        Executes the provided SQL query in chunks using the given database connection and parameters,
+        and streams each chunk to a file on disk. This function is optimized for fetching large datasets
+        by breaking the query into manageable chunks.
+
+        Parameters:
+        :param query: A string containing the SQL query to be executed.
+        :param output_directory: Directory where chunk files will be saved.
+        :param file_prefix: Prefix for each chunk file.
+        :param params: Optional. Parameters to be passed to the SQL query.
+        :param target_num_chunks: Optional. Target number of chunks for the dataset. Default is 25000.
+        """
+        try:
+            with self.get_database_connection() as conn:
+                if conn is None:
+                    print("Failed to establish a database connection.")
+                    return
+
+                # make the output directory if it doesn't exist
+                if not os.path.exists(output_directory):
+                    os.makedirs(output_directory)
+
+                with conn.cursor() as cur:
+                    # Calculate total rows and chunk size
+                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
+                    total_rows = cur.fetchone()[0]
+
+                    chunksize = max(1, total_rows // target_num_chunks)
+
+                    free_disk_space = mem_utils.get_disk_space()
+                    total_space_used = 0
+
+                    # Fetch data with a progress bar
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        pbar = tqdm(total=total_rows,
+                                    desc="Fetching rows",
+                                    bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
+                                               'Remaining: {remaining} | {rate_fmt}{postfix}]')
+
+                        for chunk_number, chunk in enumerate(pd.read_sql(query, conn, params=params, chunksize=chunksize)):
+                            # Convert the chunk to a CSV string and get its size in bytes
+                            csv_string = chunk.to_csv(index=False)
+                            csv_size = len(csv_string.encode('utf-8'))
+
+                            # Check if the size of the chunk plus the total space used so far is less than the available
+                            # disk space
+                            if total_space_used + csv_size < free_disk_space:
+                                # Write the chunk to a CSV file
+                                file_path = os.path.join(output_directory, f"{file_prefix}_{chunk_number}.csv")
+                                chunk.to_csv(file_path, index=False)
+                                pbar.update(len(chunk))
+
+                                # Add the size of the chunk to the total space used
+                                total_space_used += csv_size
+                            else:
+                                print(f"Not enough disk space to write chunk {chunk_number}. Ending process.")
+                                return
+                    pbar.close()
+
         except Exception as e:
             print(f"An error occurred: {e}")

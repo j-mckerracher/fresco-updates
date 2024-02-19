@@ -1,3 +1,9 @@
+import os
+import subprocess
+import sys
+
+import pandas as pd
+import psutil
 from IPython.display import display, clear_output, HTML
 from classes.database_manager import DatabaseManager
 from classes.data_processor import DataProcessor
@@ -541,22 +547,58 @@ class WidgetStateManager:
                     self.base_widget_manager.validate_button_hosts.description,
                     self.base_widget_manager.start_time_hosts.value,
                     self.base_widget_manager.end_time_hosts.value)
-                self.base_widget_manager.time_series_df = self.db_service.execute_sql_query_chunked(
+
+                # run DB query and save to disk
+                file_prefix = datetime.now().strftime("%d-%b-%Y-%H-%M-%S-%f")  # current datetime to mS
+                output_dir = "temp_output"
+                self.db_service.execute_sql_query_and_stream_to_disk(
                     query,
-                    self.base_widget_manager.time_series_df,
+                    output_dir,
+                    file_prefix,
                     params=params
                 )
 
-                # Check if the DataFrame is empty
-                if self.base_widget_manager.time_series_df.empty:
+                # Check if the output dir is empty
+                if not os.listdir(output_dir):
                     no_data = widgets.HTML("<h4>No data found!</h4>")
                     display(no_data)
                     return  # Exit the function after printing the message
 
+                # Remove all files from the output directory
+                self.remove_all_files_from_directory(output_dir)
+
+                # Start displaying the results
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
                 print(f"{query}\nParameters: {params}")
+
+                # display the query results
+                memory = self.get_percentage_of_available_memory(50)
+                print(f"Available memory: {memory} bytes")
+                total_size = int(memory * 1024)
+                print(f"Total size: {total_size} bytes")
+                timestamp_memory = 8  # bytes
+                string_memory = 50  # bytes
+                text_memory = 50  # bytes
+
+                # Calculate total memory usage per row
+                total_memory_per_row = timestamp_memory + 6 * string_memory + text_memory
+                print(f"Total memory usage per row: {total_memory_per_row} bytes")
+
+                # Calculate chunksize based on the total size and estimated memory usage per row
+                chunksize = int(total_size / total_memory_per_row)
+                print(f"Chunksize: {chunksize}")
+
+                # Iterate over all CSV files in the directory until total_size is reached
+                self.base_widget_manager.time_series_df = self.get_dataframe_from_csv_files(output_dir, total_size,
+                                                                                            chunksize)
+
+                # Display the results
+                print(f"Total memory usage: {sys.getsizeof(self.base_widget_manager.time_series_df)} bytes")
                 display(self.base_widget_manager.time_series_df)
+
+                # clear SQL query csv files using subprocess
+                subprocess.Popen(["python", "utilities/remove_files_from_directory.py"])
 
                 # Code to give user the option to download the filtered data
                 print(
@@ -632,3 +674,77 @@ class WidgetStateManager:
         values = [val.strip() for val in change['new'].split(',')]
         # You might want to check if values are valid for the selected column here
         self.base_widget_manager.display_query_hosts()
+
+    def remove_all_files_from_directory(self, directory):
+        """
+        Removes all files from the specified directory.
+
+        This method removes all files from the specified directory.
+
+        Parameters:
+        :param directory: The directory from which to remove all files.
+
+        Returns:
+        :return: True if all files were removed successfully, False otherwise.
+        """
+        try:
+            for file in os.listdir(directory):
+                os.remove(os.path.join(directory, file))
+            return True
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return False
+
+    def get_percentage_of_available_memory(self, percentage):
+        """
+        Get the percentage of available memory in bytes.
+
+        This method gets the percentage of available memory in bytes.
+
+        Parameters:
+        :param percentage: The percentage of available memory to get.
+
+        Returns:
+        :return: The percentage of available memory in bytes.
+        """
+        # Get the available memory in bytes
+        available_memory = psutil.virtual_memory().available
+        # Get the specified percentage of the available memory
+        return available_memory * (percentage / 100)
+
+
+    def get_dataframe_from_csv_files(self, output_dir, total_size, chunksize):
+        data_frame = pd.DataFrame()
+
+        # Get the size of the DataFrame in memory
+        df_memory_size = sys.getsizeof(data_frame)
+        print(f"Initial DataFrame memory size: {df_memory_size} bytes")
+
+        # Iterate over all CSV files in the directory
+        for filename in os.listdir(output_dir):
+            if filename.endswith(".csv"):
+                file_path = os.path.join(output_dir, filename)
+                # print(f"Processing file: {file_path}")
+
+                # Read the CSV file in chunks
+                for chunk in pd.read_csv(file_path, chunksize=chunksize):
+                    chunk_memory_size = sys.getsizeof(chunk)
+                    # print(f"Chunk memory size: {chunk_memory_size} bytes")
+
+                    # Check if adding this chunk to the DataFrame would exceed the total size
+                    if df_memory_size + chunk_memory_size <= total_size:
+                        # If not, append the chunk to the DataFrame
+                        data_frame = pd.concat([data_frame, chunk])
+                        df_memory_size += chunk_memory_size
+                        # print(f"Added chunk to DataFrame. New DataFrame memory size: {df_memory_size} bytes")
+                    else:
+                        # If it would, slice the chunk to fit the remaining size
+                        rows_to_fit = int((total_size - df_memory_size) / (chunk_memory_size / len(chunk)))
+                        data_frame = pd.concat([data_frame, chunk[:rows_to_fit]])
+                        print(
+                            f"DataFrame memory limit reached. Added only part of the chunk. New DataFrame memory size: {sys.getsizeof(data_frame)} bytes")
+                        break
+
+        print(f"DataFrame number of rows: {len(data_frame)}")
+        print("Finished processing all files.")
+        return data_frame
