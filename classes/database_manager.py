@@ -10,7 +10,7 @@ import utilities.memory_utils as mem_utils
 
 class DatabaseManager():
     def __init__(self):
-        pass
+        self.stream_to_disk_threshold = 300000
 
     def get_database_connection(self) -> Optional[psycopg2.extensions.connection]:
         """
@@ -73,7 +73,26 @@ class DatabaseManager():
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def execute_sql_query_chunked(self, query, incoming_df, params=None, target_num_chunks=25000):
+    def determine_query_type(self, query, output_dir, file_prefix, params):
+        try:
+            with self.get_database_connection() as conn:
+                if conn is None:
+                    print("Failed to establish a database connection.")
+                    return
+
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
+                    total_rows = cur.fetchone()[0]
+
+                    if total_rows < self.stream_to_disk_threshold:
+                        return self.execute_sql_query_chunked(query, params)
+                    else:
+                        print("Total rows greater memory threshold. Streaming data to disk.")
+                        return self.execute_sql_query_and_stream_to_disk(query, output_dir, file_prefix, params)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    def execute_sql_query_chunked(self, query, params=None, target_num_chunks=25000):
         """
         Executes the provided SQL query in chunks using the given database connection and parameters,
         and returns the combined result as a pandas DataFrame. This function is optimized for fetching

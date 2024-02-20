@@ -554,11 +554,11 @@ class WidgetStateManager:
 
                 # run DB query and save to disk
                 file_prefix = datetime.now().strftime("%d-%b-%Y-%H-%M-%S-%f")  # current datetime to mS
-                self.db_service.execute_sql_query_and_stream_to_disk(
-                    query,
-                    output_dir,
-                    file_prefix,
-                    params=params
+                self.db_service.determine_query_type(
+                    query=query,
+                    output_dir=output_dir,
+                    file_prefix=file_prefix,
+                    params=params,
                 )
 
                 # Check if the output dir is empty

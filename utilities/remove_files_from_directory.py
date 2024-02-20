@@ -2,7 +2,7 @@ import os
 import time
 
 output_dir = "temp_output"
-file_life_in_seconds = 30  # 3600
+file_life_in_seconds = 3600  # 1 hour
 
 
 def remove_all_files_from_directory(directory):
