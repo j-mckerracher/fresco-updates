@@ -578,7 +578,6 @@ class WidgetStateManager:
                 self.base_widget_manager.time_series_df = self.get_dataframe_from_csv_files(output_dir)
 
                 # Display the results
-                print(f"Total memory usage: {sys.getsizeof(self.base_widget_manager.time_series_df)} bytes")
                 display(self.base_widget_manager.time_series_df)
 
                 # clear SQL query csv files using subprocess

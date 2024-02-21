@@ -74,6 +74,30 @@ class DatabaseManager():
             print(f"An error occurred: {e}")
 
     def determine_query_type(self, query, output_dir, file_prefix, params):
+        """
+        Determines the type of SQL query to execute based on the number of rows the query would return.
+
+        This function first establishes a connection to the database. If the connection is successful, it executes
+        a COUNT query to determine the total number of rows the input query would return. If the total number of rows
+        is less than the stream_to_disk_threshold, it executes the query in chunks and returns the result. If the total
+        number of rows is greater than the stream_to_disk_threshold, it executes the query in chunks and streams each
+        chunk to a file on disk.
+
+        Parameters:
+        :param query: A string containing the SQL query to be executed.
+        :param output_dir: The directory where the chunk files will be saved if the total number of rows is greater than
+                           the stream_to_disk_threshold.
+        :param file_prefix: The prefix for each chunk file if the total number of rows is greater than the
+                            stream_to_disk_threshold.
+        :param params: Optional. A list, tuple, or dict containing parameters to be passed to the SQL query. This is used
+                       to handle parameterized queries safely.
+
+        Returns:
+        :return: If the total number of rows is less than the stream_to_disk_threshold, a pandas DataFrame containing the
+                 results of the executed SQL query combined from all chunks. If the total number of rows is greater than
+                 the stream_to_disk_threshold, None is returned as the results are streamed to disk. If there's an error
+                 in execution or establishing a database connection, the function may return None.
+        """
         try:
             with self.get_database_connection() as conn:
                 if conn is None:
@@ -85,20 +109,22 @@ class DatabaseManager():
                     total_rows = cur.fetchone()[0]
 
                     if total_rows < self.stream_to_disk_threshold:
-                        return self.execute_sql_query_chunked(query, params)
+                        return self.execute_sql_query_chunked(query, params, total_rows)
                     else:
                         print("Total rows greater memory threshold. Streaming data to disk.")
-                        return self.execute_sql_query_and_stream_to_disk(query, output_dir, file_prefix, params)
+                        return self.execute_sql_query_and_stream_to_disk(query, output_dir, total_rows, file_prefix,
+                                                                         params)
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def execute_sql_query_chunked(self, query, params=None, target_num_chunks=25000):
+    def execute_sql_query_chunked(self, query, total_rows, params=None, target_num_chunks=25000):
         """
         Executes the provided SQL query in chunks using the given database connection and parameters,
         and returns the combined result as a pandas DataFrame. This function is optimized for fetching
         large datasets by breaking the query into manageable chunks and processing them sequentially.
 
         Parameters:
+        :param total_rows: The total number of rows in the dataset.
         :param query: A string containing the SQL query to be executed.
         :param incoming_df: A pandas DataFrame which may be used to store intermediate results, though the final result
                             is appended to a new DataFrame.
@@ -120,10 +146,6 @@ class DatabaseManager():
 
                 # Create a cursor object
                 with conn.cursor() as cur:
-                    # Calculate total rows and chunk size
-                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
-                    total_rows = cur.fetchone()[0]
-
                     chunksize = total_rows // target_num_chunks if total_rows > target_num_chunks else total_rows
 
                     # Fetch data with a progress bar
@@ -144,7 +166,7 @@ class DatabaseManager():
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def execute_sql_query_and_stream_to_disk(self, query, output_directory, file_prefix, params=None,
+    def execute_sql_query_and_stream_to_disk(self, query, output_directory, total_rows, file_prefix, params=None,
                                              target_num_chunks=25000):
         """
         Executes the provided SQL query in chunks using the given database connection and parameters,
@@ -152,6 +174,7 @@ class DatabaseManager():
         by breaking the query into manageable chunks.
 
         Parameters:
+        :param total_rows: The total number of rows in the dataset.
         :param query: A string containing the SQL query to be executed.
         :param output_directory: Directory where chunk files will be saved.
         :param file_prefix: Prefix for each chunk file.
@@ -169,10 +192,6 @@ class DatabaseManager():
                     os.makedirs(output_directory)
 
                 with conn.cursor() as cur:
-                    # Calculate total rows and chunk size
-                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
-                    total_rows = cur.fetchone()[0]
-
                     chunksize = max(1, total_rows // target_num_chunks)
 
                     free_disk_space = mem_utils.get_disk_space()
@@ -186,7 +205,8 @@ class DatabaseManager():
                                     bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
                                                'Remaining: {remaining} | {rate_fmt}{postfix}]')
 
-                        for chunk_number, chunk in enumerate(pd.read_sql(query, conn, params=params, chunksize=chunksize)):
+                        for chunk_number, chunk in enumerate(
+                                pd.read_sql(query, conn, params=params, chunksize=chunksize)):
                             # Convert the chunk to a CSV string and get its size in bytes
                             csv_string = chunk.to_csv(index=True)
                             csv_size = len(csv_string.encode('utf-8'))
