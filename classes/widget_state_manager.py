@@ -554,7 +554,7 @@ class WidgetStateManager:
 
                 # run DB query and save to disk
                 file_prefix = datetime.now().strftime("%d-%b-%Y-%H-%M-%S-%f")  # current datetime to mS
-                self.db_service.determine_query_type(
+                chunks_used = self.db_service.determine_query_type(
                     query=query,
                     output_dir=output_dir,
                     file_prefix=file_prefix,
@@ -594,12 +594,18 @@ class WidgetStateManager:
                 end = self.base_widget_manager.end_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
 
                 def on_csv_button_clicked(b):
-                    self.data_processor.create_csv_download_file(self.base_widget_manager.time_series_df,
-                                                                 filename=f"host-data-csv-{start}-to-{end}.csv")
+                    self.data_processor.create_csv_download_file(
+                        output_dir,
+                        chunks_used=chunks_used,
+                        filename=f"host-data-csv-{start}-to-{end}.csv"
+                    )
 
                 def on_excel_button_clicked(b):
-                    self.data_processor.create_excel_download_file(self.base_widget_manager.time_series_df,
-                                                                   filename=f"host-data-excel-{start}-to-{end}.xlsx")
+                    self.data_processor.create_excel_download_file(
+                        output_dir,
+                        chunks_used=chunks_used,
+                        filename=f"host-data-excel-{start}-to-{end}.xlsx"
+                    )
 
                 csv_download_button.on_click(on_csv_button_clicked)
                 excel_download_button.on_click(on_excel_button_clicked)

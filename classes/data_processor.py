@@ -500,17 +500,27 @@ class DataProcessor:
         except Exception as e:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
 
-    def create_csv_download_file(self, df, filename="data.csv"):
+    def create_csv_download_file(self, output_directory, chunks_used=False, df=None, filename="data.csv"):
         """
         Saves a DataFrame as a zipped CSV file to the current working directory.
 
         Parameters:
+        :param chunks_used:
+        :param output_directory:
         :param df: A pandas DataFrame that is to be saved.
         :param filename: The name to use for the saved file inside the zip. Defaults to "data.csv".
 
         Returns:
         :return: A message indicating the file's location or an error message.
         """
+        if not chunks_used:
+            # Convert all csv files in the output_directory into one zip file
+            self.zip_files_in_folder(output_directory, os.path.join(os.getcwd(), filename))
+        else:
+            # Convert DataFrame to CSV string
+            self.create_csv_from_dataframe(df=df, filename=filename)
+
+    def create_csv_from_dataframe(self, df=None, filename="data.csv"):
         try:
             # Convert DataFrame to CSV string
             csv_str = df.to_csv(index=False)
@@ -523,46 +533,26 @@ class DataProcessor:
             # Write the CSV data to a zip file
             with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
                 zipf.writestr(filename, csv_bytes)
-
-            return f"File saved to {zip_path}"
         except Exception as e:
             return f"An error occurred: {e}"
 
-    def create_excel_download_file(self, df, filename="data.xlsx"):
+    def create_excel_download_file(self, output_directory, chunks_used=False, df=None, filename="data.xlsx"):
         """
         Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
 
         Parameters:
+        :param chunks_used:
+        :param output_directory:
         :param df: A pandas DataFrame that is to be saved.
         :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
 
         Returns:
         :return: A message indicating the file's location or an error message.
         """
-        try:
-            df_copy = df.copy()
-
-            # If df has datetime columns, convert them to timezone-naive
-            for col in df.columns:
-                if isinstance(df[col].dtype, pd.DatetimeTZDtype):
-                    df_copy[col] = df[col].dt.tz_convert(None)
-
-            # Write DataFrame to Excel in memory
-            with io.BytesIO() as output:
-                df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
-                excel_data = output.getvalue()
-
-            # Define zip filename
-            zip_filename = filename.rsplit('.', 1)[0] + '.zip'
-            zip_path = os.path.join(os.getcwd(), zip_filename)
-
-            # Write the Excel data to a zip file
-            with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-                zipf.writestr(filename, excel_data)
-
-            return f"File saved to {zip_path}"
-        except Exception as e:
-            return f"An error occurred: {e}"
+        if chunks_used:
+            self.create_excel_from_dataframe(df=df, filename=filename)
+        else:
+            self.create_excel_from_csv_directory(directory=output_directory, filename=filename)
 
     def calculate_correlation(self, time_series: pd.DataFrame, correlations):
         """
@@ -652,3 +642,87 @@ class DataProcessor:
         except Exception as e:
             print(f"An error occurred: {e}")
             return list(mapped_units.keys())
+
+    def zip_files_in_folder(self, folder_path, zip_file_path):
+        """
+        Zips all files in a given folder into a single zip file.
+
+        Parameters:
+        :param folder_path: A string representing the path to the folder containing the files to be zipped.
+        :param zip_file_path: A string representing the path (including filename) where the zip file will be created.
+
+        This function walks through the directory specified by folder_path, and for each file in the directory,
+        it adds it to the zip file. The zip file is created at the location specified by zip_file_path.
+        """
+        # Create a ZipFile object in write mode
+        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the directory
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    # Construct the full file path
+                    file_path = os.path.join(root, file)
+                    # Add the file to the zip file, using a relative path as the archive name
+                    zipf.write(file_path, arcname=os.path.relpath(file_path, folder_path))
+
+    def create_excel_from_csv_directory(self, directory, filename="data.xlsx"):
+        """
+        Combines the contents of multiple CSV files in a directory into a single Excel file.
+
+        Parameters:
+        :param chunks_used:
+        :param directory: The directory containing the CSV files.
+        :param filename: The name to use for the saved Excel file inside the zip. Defaults to "data.xlsx".
+
+        Returns:
+        :return: A message indicating the file's location or an error message.
+        """
+        try:
+            # Define zip filename
+            zip_filename = filename.rsplit('.', 1)[0] + '.zip'
+            zip_path = os.path.join(os.getcwd(), zip_filename)
+
+            # Create a new Excel writer object
+            with pd.ExcelWriter(zip_path, engine='xlsxwriter') as writer:
+                # Iterate over all CSV files in the directory
+                for file in os.listdir(directory):
+                    if file.endswith('.csv'):
+                        # Read the CSV file into a DataFrame
+                        df_file = pd.read_csv(os.path.join(directory, file))
+
+                        # If df has datetime columns, convert them to timezone-naive
+                        for col in df_file.columns:
+                            if isinstance(df_file[col].dtype, pd.DatetimeTZDtype):
+                                df_file[col] = df_file[col].dt.tz_convert(None)
+
+                        # Write DataFrame to Excel
+                        df_file.to_excel(writer, sheet_name=os.path.splitext(file)[0])
+
+            return f"File saved to {zip_path}"
+        except Exception as e:
+            return f"An error occurred: {e}"
+
+    def create_excel_from_dataframe(self, df=None, filename="data.xlsx"):
+        try:
+            df_copy = df.copy()
+
+            # If df has datetime columns, convert them to timezone-naive
+            for col in df.columns:
+                if isinstance(df[col].dtype, pd.DatetimeTZDtype):
+                    df_copy[col] = df[col].dt.tz_convert(None)
+
+            # Write DataFrame to Excel in memory
+            with io.BytesIO() as output:
+                df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
+                excel_data = output.getvalue()
+
+            # Define zip filename
+            zip_filename = filename.rsplit('.', 1)[0] + '.zip'
+            zip_path = os.path.join(os.getcwd(), zip_filename)
+
+            # Write the Excel data to a zip file
+            with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+                zipf.writestr(filename, excel_data)
+
+            return f"File saved to {filename}"
+        except Exception as e:
+            return f"An error occurred: {e}"

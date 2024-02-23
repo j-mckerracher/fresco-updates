@@ -109,11 +109,13 @@ class DatabaseManager():
                     total_rows = cur.fetchone()[0]
 
                     if total_rows < self.stream_to_disk_threshold:
-                        return self.execute_sql_query_chunked(query, params, total_rows)
+                        self.execute_sql_query_chunked(query, params, total_rows)
+                        return False
                     else:
                         print("Total rows greater memory threshold. Streaming data to disk.")
-                        return self.execute_sql_query_and_stream_to_disk(query, output_dir, total_rows, file_prefix,
+                        self.execute_sql_query_and_stream_to_disk(query, output_dir, total_rows, file_prefix,
                                                                          params)
+                        return True
         except Exception as e:
             print(f"An error occurred: {e}")
 
