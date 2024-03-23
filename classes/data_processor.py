@@ -501,19 +501,14 @@ class DataProcessor:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
 
     def create_csv_download_file(self, df, filename="data.csv"):
-        """
-        Saves a DataFrame as a zipped CSV file to the current working directory.
-
-        Parameters:
-        :param df: A pandas DataFrame that is to be saved.
-        :param filename: The name to use for the saved file inside the zip. Defaults to "data.csv".
-
-        Returns:
-        :return: A message indicating the file's location or an error message.
-        """
         try:
-            # Convert DataFrame to CSV string
-            csv_str = df.to_csv(index=False)
+            if isinstance(df, str):
+                # df is a file path, read from the file
+                csv_str = open(df, 'r').read()
+            else:
+                # Convert DataFrame to CSV string
+                csv_str = df.to_csv(index=False)
+
             csv_bytes = csv_str.encode('utf-8')
 
             # Define zip filename
@@ -529,23 +524,17 @@ class DataProcessor:
             return f"An error occurred: {e}"
 
     def create_excel_download_file(self, df, filename="data.xlsx"):
-        """
-        Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
-
-        Parameters:
-        :param df: A pandas DataFrame that is to be saved.
-        :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
-
-        Returns:
-        :return: A message indicating the file's location or an error message.
-        """
         try:
-            df_copy = df.copy()
+            if isinstance(df, str):
+                # df is a file path, read from the file
+                df_copy = pd.read_csv(df)
+            else:
+                df_copy = df.copy()
 
             # If df has datetime columns, convert them to timezone-naive
-            for col in df.columns:
-                if isinstance(df[col].dtype, pd.DatetimeTZDtype):
-                    df_copy[col] = df[col].dt.tz_convert(None)
+            for col in df_copy.columns:
+                if isinstance(df_copy[col].dtype, pd.DatetimeTZDtype):
+                    df_copy[col] = df_copy[col].dt.tz_convert(None)
 
             # Write DataFrame to Excel in memory
             with io.BytesIO() as output:

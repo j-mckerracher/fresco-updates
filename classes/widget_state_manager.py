@@ -3,6 +3,7 @@ from classes.database_manager import DatabaseManager
 from classes.data_processor import DataProcessor
 from ipywidgets import widgets
 from datetime import datetime
+import pandas as pd
 
 
 class WidgetStateManager:
@@ -423,30 +424,66 @@ class WidgetStateManager:
                 clear_output(wait=True)
         self.base_widget_manager.display_query_hosts()  # Display the current SQL query for hosts
 
+    def on_execute_button_clicked_hosts(self, b):
+        with self.base_widget_manager.output_hosts:
+            clear_output(wait=True)  # Clear the previous output
+            if not self.base_widget_manager.time_window_valid_hosts:
+                print("Please enter a valid time window before executing the query.")
+                return
+            try:
+                query, params = self.data_processor.construct_query_hosts(
+                    self.base_widget_manager.where_conditions_hosts,
+                    self.base_widget_manager.host_data_columns_dropdown.value,
+                    self.base_widget_manager.validate_button_hosts.description,
+                    self.base_widget_manager.start_time_hosts.value,
+                    self.base_widget_manager.end_time_hosts.value)
+
+                # Delete previous query results file if it exists
+                self.db_service.delete_query_results_file()
+
+                result = self.db_service.execute_sql_query_chunked(
+                    query,
+                    self.base_widget_manager.time_series_df,
+                    params=params
+                )
+
+                if isinstance(result, str):
+                    # Result is a file path, data was streamed to disk
+                    self.base_widget_manager.time_series_df = pd.read_csv(result)
+                    display(self.base_widget_manager.time_series_df.head())
+                    print("Results truncated due to memory limitations. Full results saved to disk.")
+                else:
+                    self.base_widget_manager.time_series_df = result
+                    display(self.base_widget_manager.time_series_df)
+
+                # Code to give user the option to download the filtered data
+                print(
+                    "\nDownload the filtered Host table data? The files will appear on the left in the file explorer.")
+                csv_download_button = widgets.Button(description="Download as CSV")
+                excel_download_button = widgets.Button(description="Download as Excel")
+
+                start = self.base_widget_manager.start_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
+                end = self.base_widget_manager.end_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
+
+                def on_csv_button_clicked(b):
+                    self.data_processor.create_csv_download_file(self.base_widget_manager.time_series_df,
+                                                                 filename=f"host-data-csv-{start}-to-{end}.csv")
+
+                def on_excel_button_clicked(b):
+                    self.data_processor.create_excel_download_file(self.base_widget_manager.time_series_df,
+                                                                   filename=f"host-data-excel-{start}-to-{end}.xlsx")
+
+                csv_download_button.on_click(on_csv_button_clicked)
+                excel_download_button.on_click(on_excel_button_clicked)
+
+                # Put the buttons in a horizontal box
+                button_box = widgets.HBox([csv_download_button, excel_download_button])
+                display(button_box)
+
+            except Exception as e:
+                print(f"An error occurred: {e}")
+
     def on_execute_button_clicked_jobs(self, b):
-        """
-        Executes the constructed SQL query for job data, displays the results, and provides options for downloading the data.
-
-        This method validates the selected time window and, if valid, constructs and executes the SQL query for job data
-        using the selected conditions. The results are displayed in the output widget. Additionally, the user is given
-        the option to download the results as a CSV or Excel file.
-
-        Parameters:
-        :param b: The button instance triggering this callback.
-
-        Attributes used:
-        :attr self.time_window_valid_jobs: Boolean indicating if the selected time window is valid.
-        :attr self.output_jobs: Output widget to display the query results or notifications.
-        :attr self.where_conditions_jobs: List of conditions selected for the SQL query.
-        :attr self.job_data_columns_dropdown: Dropdown widget for selecting columns to include in the query.
-        :attr self.validate_button_jobs: Button widget for time window validation.
-        :attr self.start_time_jobs: Datetime picker widget to select the start time for the query.
-        :attr self.end_time_jobs: Datetime picker widget to select the end time for the query.
-        :attr self.account_log_df: DataFrame to store the results of the executed SQL query.
-
-        Returns:
-        :return: None. This method updates class attributes directly and displays the query results or notifications in the output widget.
-        """
         with self.base_widget_manager.output_jobs:
             clear_output(wait=True)  # Clear the previous output
             if not self.base_widget_manager.time_window_valid_jobs:
@@ -461,22 +498,23 @@ class WidgetStateManager:
                     self.base_widget_manager.end_time_jobs.value
                 )
 
-                self.base_widget_manager.account_log_df = self.db_service.execute_sql_query_chunked(
+                # Delete previous query results file if it exists
+                self.db_service.delete_query_results_file()
+
+                result = self.db_service.execute_sql_query_chunked(
                     query,
                     self.base_widget_manager.account_log_df,
                     params=params
                 )
 
-                # Check if the DataFrame is empty
-                if self.base_widget_manager.account_log_df.empty:
-                    no_data = widgets.HTML("<h4>No data found!</h4>")
-                    display(no_data)
-                    return
-
-                results = widgets.HTML("<h4>Results for query:</h4>")
-                display(results)
-                print(f"{query}\nParameters: {params}")
-                display(self.base_widget_manager.account_log_df)
+                if isinstance(result, str):
+                    # Result is a file path, data was streamed to disk
+                    self.base_widget_manager.account_log_df = pd.read_csv(result)
+                    display(self.base_widget_manager.account_log_df.head())
+                    print("Results truncated due to memory limitations. Full results saved to disk.")
+                else:
+                    self.base_widget_manager.account_log_df = result
+                    display(self.base_widget_manager.account_log_df)
 
                 # Code to give user the option to download the filtered data
                 print("\nDownload the Job table data? The files will appear on the left in the file explorer.")
@@ -500,88 +538,6 @@ class WidgetStateManager:
                 # Put the buttons in a horizontal box
                 button_box2 = widgets.HBox([csv_acc_download_button, excel_acc_download_button])
                 display(button_box2)
-
-            except Exception as e:
-                print(f"An error occurred: {e}")
-
-    def on_execute_button_clicked_hosts(self, b):
-        """
-        Executes the constructed SQL query for host data, displays the results, and provides options for downloading the data.
-
-        This method validates the selected time window and, if valid, constructs and executes the SQL query for host data
-        using the selected conditions. The results are displayed in the output widget. Additionally, the user is given
-        the option to download the results as a CSV or Excel file.
-
-        Parameters:
-        :param b: The button instance triggering this callback.
-
-        Attributes used:
-        :attr self.time_window_valid_hosts: Boolean indicating if the selected time window is valid.
-        :attr self.output_hosts: Output widget to display the query results or notifications.
-        :attr self.where_conditions_hosts: List of conditions selected for the SQL query.
-        :attr self.host_data_columns_dropdown: Dropdown widget for selecting columns to include in the query.
-        :attr self.validate_button_hosts: Button widget for time window validation.
-        :attr self.start_time_hosts: Datetime picker widget to select the start time for the query.
-        :attr self.end_time_hosts: Datetime picker widget to select the end time for the query.
-        :attr self.time_series_df: DataFrame to store the results of the executed SQL query.
-        :attr self.host_data_sql_query: String to store the constructed SQL query.
-
-        Returns:
-        :return: None. This method updates class attributes directly and displays the query results or notifications in the output widget.
-        """
-        with self.base_widget_manager.output_hosts:
-            clear_output(wait=True)  # Clear the previous output
-            if not self.base_widget_manager.time_window_valid_hosts:
-                print("Please enter a valid time window before executing the query.")
-                return
-            try:
-                query, params = self.data_processor.construct_query_hosts(
-                    self.base_widget_manager.where_conditions_hosts,
-                    self.base_widget_manager.host_data_columns_dropdown.value,
-                    self.base_widget_manager.validate_button_hosts.description,
-                    self.base_widget_manager.start_time_hosts.value,
-                    self.base_widget_manager.end_time_hosts.value)
-                self.base_widget_manager.time_series_df = self.db_service.execute_sql_query_chunked(
-                    query,
-                    self.base_widget_manager.time_series_df,
-                    params=params
-                )
-
-                # Check if the DataFrame is empty
-                if self.base_widget_manager.time_series_df.empty:
-                    no_data = widgets.HTML("<h4>No data found!</h4>")
-                    display(no_data)
-                    return  # Exit the function after printing the message
-
-                results = widgets.HTML("<h4>Results for query:</h4>")
-                display(results)
-                print(f"{query}\nParameters: {params}")
-                display(self.base_widget_manager.time_series_df)
-
-                # Code to give user the option to download the filtered data
-                print(
-                    "\nDownload the filtered Host table data? The files will appear on the left in the file "
-                    "explorer.")
-                csv_download_button = widgets.Button(description="Download as CSV")
-                excel_download_button = widgets.Button(description="Download as Excel")
-
-                start = self.base_widget_manager.start_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
-                end = self.base_widget_manager.end_time_hosts.value.strftime('%Y-%m-%d-%H-%M-%S')
-
-                def on_csv_button_clicked(b):
-                    self.data_processor.create_csv_download_file(self.base_widget_manager.time_series_df,
-                                                                 filename=f"host-data-csv-{start}-to-{end}.csv")
-
-                def on_excel_button_clicked(b):
-                    self.data_processor.create_excel_download_file(self.base_widget_manager.time_series_df,
-                                                                   filename=f"host-data-excel-{start}-to-{end}.xlsx")
-
-                csv_download_button.on_click(on_csv_button_clicked)
-                excel_download_button.on_click(on_excel_button_clicked)
-
-                # Put the buttons in a horizontal box
-                button_box = widgets.HBox([csv_download_button, excel_download_button])
-                display(button_box)
 
             except Exception as e:
                 print(f"An error occurred: {e}")
