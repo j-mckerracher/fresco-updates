@@ -1,3 +1,5 @@
+import csv
+
 from IPython.display import display, clear_output, HTML
 from classes.database_manager import DatabaseManager
 from classes.data_processor import DataProcessor
@@ -441,20 +443,29 @@ class WidgetStateManager:
                 # Delete previous query results file if it exists
                 self.db_service.delete_query_results_file()
 
-                result = self.db_service.execute_sql_query_chunked(
-                    query,
-                    self.base_widget_manager.time_series_df,
-                    params=params
-                )
+                # ------------------------------------------------------------
+                query_results_file = 'query_results.csv'
+                hard_disk_used = False
+                with open(query_results_file, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    for chunk, use_memory in self.db_service.execute_sql_query_chunked(query, self.base_widget_manager.account_log_df, params=params):
+                        if use_memory:
+                            self.base_widget_manager.time_series_df = self.base_widget_manager.time_series_df.append(
+                                chunk, ignore_index=True)
+                        else:
+                            hard_disk_used = True
+                            chunk.to_csv(f, header=f.tell() == 0, index=False)
 
-                if isinstance(result, str):
+                if hard_disk_used:
                     # Result is a file path, data was streamed to disk
-                    self.base_widget_manager.time_series_df = pd.read_csv(result)
-                    display(self.base_widget_manager.time_series_df.head())
-                    print("Results truncated due to memory limitations. Full results saved to disk.")
+                    # get the first 100 rows to display and display them
+                    truncated_df = pd.read_csv(query_results_file, nrows=100)
+                    print("Results truncated due to memory limitations. Displaying the first 100 rows:")
+                    display(truncated_df)
+                    print(f"Full results saved to disk: {query_results_file}")
                 else:
-                    self.base_widget_manager.time_series_df = result
                     display(self.base_widget_manager.time_series_df)
+                # ------------------------------------------------------------
 
                 # Code to give user the option to download the filtered data
                 print(

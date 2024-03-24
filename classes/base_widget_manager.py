@@ -25,7 +25,7 @@ class BaseWidgetManager:
         self.where_conditions_values = []
         self.where_conditions_jobs = []
         self.time_window_valid_jobs = False
-        self.MAX_DAYS_HOSTS = 5
+        self.MAX_DAYS_HOSTS = 100
         self.MAX_DAYS_JOBS = 180
         self.account_log_df = pd.DataFrame()
         self.host_data_sql_query = ""

@@ -1,5 +1,6 @@
 import csv
 import os
+import shutil
 import sys
 from typing import Optional
 
@@ -76,6 +77,35 @@ class DatabaseManager():
         except Exception as e:
             print(f"An error occurred: {e}")
 
+    def calculate_row_memory_size(self, query, params, conn):
+        with conn.cursor() as cur:
+            cur.execute(query + " LIMIT 1", params)
+            sample_row = cur.fetchone()
+            return sys.getsizeof(sample_row)
+
+    def is_memory_available(self, required_memory):
+        mem = psutil.virtual_memory()
+        available_mem = mem.available
+        return required_memory <= 0.8 * available_mem
+
+    def estimate_row_memory_size(self, query, params, conn):
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT * FROM ({query}) LIMIT 0", params)
+            column_types = [desc[1] for desc in cur.description]
+
+            # Estimate memory size based on data types
+            size_estimates = {
+                'integer': 4,
+                'bigint': 8,
+                'float': 8,
+                'text': 100,  # Adjust based on average text size
+                'timestamp': 8,
+                # Add more data types and their estimated sizes
+            }
+
+            estimated_size = sum(size_estimates.get(str(col_type), 0) for col_type in column_types)
+            return estimated_size
+
     def execute_sql_query_chunked(self, query, incoming_df, params=None, target_num_chunks=25000):
         try:
             with self.get_database_connection() as conn:
@@ -91,35 +121,36 @@ class DatabaseManager():
 
                     chunksize = total_rows // target_num_chunks if total_rows > target_num_chunks else total_rows
 
-                    # Check available memory
-                    mem = psutil.virtual_memory()
-                    available_mem = mem.available
-                    expected_mem_usage = chunksize * sys.getsizeof(float()) * 8  # Assuming 8 bytes per float
+                    # Estimate memory size based on data types
+                    estimated_row_size = self.estimate_row_memory_size(query, params, conn)
 
-                    if expected_mem_usage > 0.8 * available_mem:
-                        # Stream results to hard disk
-                        query_results_file = 'query_results.csv'
-                        with open(query_results_file, 'w', newline='') as f:
-                            writer = csv.writer(f)
-                            for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
-                                chunk.to_csv(f, header=f.tell() == 0, index=False)
-                        return query_results_file
-                    else:
-                        # Fetch data with a progress bar
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            pbar = tqdm(total=total_rows,
-                                        desc="Fetching rows",
-                                        bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
-                                                   'Remaining: {remaining} | {rate_fmt}{postfix}]')
+                    # Check available memory and disk space
+                    expected_mem_usage = chunksize * estimated_row_size
+                    available_disk_space = shutil.disk_usage(".").free
+                    use_memory = self.is_memory_available(expected_mem_usage)
 
-                            chunks = []
-                            for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
-                                chunks.append(chunk)
-                                pbar.update(len(chunk))
+                    if not use_memory and expected_mem_usage > available_disk_space:
+                        print(
+                            "The query result is too large to fit in available memory and disk space. Skipping "
+                            "execution.")
+                        return
+
+                    # Ignore warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+
+                        # Create progress bar
+                        pbar = tqdm(total=total_rows,
+                                    desc="Fetching rows",
+                                    bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
+                                               'Remaining: {remaining} | {rate_fmt}{postfix}]')
+
+                        # Process chunks individually
+                        for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
+                            pbar.update(len(chunk))
+                            yield chunk, use_memory
 
                         pbar.close()
-                        return pd.concat(chunks, ignore_index=True)
         except Exception as e:
             print(f"An error occurred: {e}")
 
