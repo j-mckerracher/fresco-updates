@@ -1,5 +1,5 @@
 from scipy.stats import pearsonr
-import pandas as pd
+import polars as pl
 import zipfile
 import re
 import io
@@ -399,104 +399,101 @@ class DataProcessor:
 
         return query, params
 
-    def get_mean(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
+    def get_mean(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
         """
         Calculates the mean of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
         basis.
 
         Parameters:
-        :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
+        :param time_series: A Polars DataFrame that contains a column 'value'. The mean is calculated on the 'value'
                             column.
-        :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
+        :param rolling: A boolean indicating whether the mean should be calculated for the entire DataFrame (False) or
                         on a rolling window basis (True).
-        :param window: The size of the rolling window for which the median is to be calculated. It should be specified
-                       in string format like use D for days, H for hours, T for minutes, and S for seconds. This parameter
+        :param window: The size of the rolling window for which the mean is to be calculated. It should be specified
+                       in string format like use d for days, h for hours, m for minutes, and s for seconds. This parameter
                        is considered only if rolling is set to True.
 
         Returns:
-        :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
-                 DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
-                 rolling is False, the result will be a Series with the overall median.
+        :return: A Polars DataFrame or Series which contains the mean of the 'value' column of the provided time_series
+                 DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window mean. If
+                 rolling is False, the result will be a Series with the overall mean.
         """
-        result = time_series.copy()
-        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
+        result = time_series.drop(['jid', 'host', 'event', 'unit'])
 
         if rolling:
-            return result.rolling(window=window).mean()
+            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').mean())
 
-        return result.mean()
+        return result.select(pl.col('value').mean())
 
-    def get_median(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
+    def get_median(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
         """
         Calculates the median of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
         basis.
 
         Parameters:
-        :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
+        :param time_series: A Polars DataFrame that contains a column 'value'. The median is calculated on the 'value'
                             column.
         :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
                         on a rolling window basis (True).
         :param window: The size of the rolling window for which the median is to be calculated. It should be specified
-                       in string format like use D for days, H for hours, T for minutes, and S for seconds. This parameter
+                       in string format like use d for days, h for hours, m for minutes, and s for seconds. This parameter
                        is considered only if rolling is set to True.
 
         Returns:
-        :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
+        :return: A Polars DataFrame or Series which contains the median of the 'value' column of the provided time_series
                  DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
                  rolling is False, the result will be a Series with the overall median.
         """
-        result = time_series.copy()
-        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
+        result = time_series.drop(['jid', 'host', 'event', 'unit'])
 
         if rolling:
-            return result.rolling(window=window).median()
+            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').median())
 
-        return result.median()
+        return result.select(pl.col('value').median())
 
-    def get_standard_deviation(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
+    def get_standard_deviation(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
         """
         Calculates the standard deviation of the provided time_series DataFrame, either on the entire DataFrame or on a
         rolling window basis.
 
         Parameters:
-        :param time_series: A pandas DataFrame that contains a column 'value'. The standard deviation is calculated on the
+        :param time_series: A Polars DataFrame that contains a column 'value'. The standard deviation is calculated on the
                             'value' column.
         :param rolling: A boolean indicating whether the standard deviation should be calculated for the entire DataFrame
                         (False) or on a rolling window basis (True).
         :param window: The size of the rolling window for which the standard deviation is to be calculated. It should be
-                        specified in string format like use D for days, H for hours, T for minutes, and S for seconds. This
+                        specified in string format like use d for days, h for hours, m for minutes, and s for seconds. This
                         parameter is considered only if rolling is set to True.
 
         Returns:
-        :return: A pandas DataFrame or Series which contains the standard deviation of the 'value' column of the provided
+        :return: A Polars DataFrame or Series which contains the standard deviation of the 'value' column of the provided
                 time_series DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window
                 standard deviation. If rolling is False, the result will be a Series with the overall standard deviation.
         """
-        result = time_series.copy()
-        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
+        result = time_series.drop(['jid', 'host', 'event', 'unit'])
 
         if rolling:
-            return result.rolling(window=window).std()
+            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').std())
 
-        return result.std()
+        return result.select(pl.col('value').std())
 
     def remove_columns(self):
         """
-       Removes specific columns ('type', 'diff', 'arc') from the given dataframe.
+        Removes specific columns ('type', 'diff', 'arc') from the given dataframe.
 
-       Parameters:
-       :param df: A pandas DataFrame
+        Parameters:
+        :param df: A Polars DataFrame
 
-       Returns:
-       :return: A pandas DataFrame with the specified columns removed.
-       """
-        if not isinstance(self.base_widget_manager.time_series_df, pd.DataFrame):
-            raise ValueError("Input must be a pandas DataFrame.")
+        Returns:
+        :return: A Polars DataFrame with the specified columns removed.
+        """
+        if not isinstance(self.base_widget_manager.time_series_df, pl.DataFrame):
+            raise ValueError("Input must be a Polars DataFrame.")
 
         columns_to_remove = ['type', 'diff', 'arc']
 
         try:
-            self.base_widget_manager.time_series_df.drop(columns=columns_to_remove, errors='ignore', inplace=True)
+            self.base_widget_manager.time_series_df = self.base_widget_manager.time_series_df.drop(columns_to_remove)
         except Exception as e:
             raise RuntimeError(f"An error occurred while removing columns: {e}")
 
@@ -505,7 +502,7 @@ class DataProcessor:
         Saves a DataFrame as a zipped CSV file to the current working directory.
 
         Parameters:
-        :param df: A pandas DataFrame that is to be saved.
+        :param df: A Polars DataFrame that is to be saved.
         :param filename: The name to use for the saved file inside the zip. Defaults to "data.csv".
 
         Returns:
@@ -513,8 +510,7 @@ class DataProcessor:
         """
         try:
             # Convert DataFrame to CSV string
-            csv_str = df.to_csv(index=False)
-            csv_bytes = csv_str.encode('utf-8')
+            csv_str = df.write_csv()
 
             # Define zip filename
             zip_filename = filename.rsplit('.', 1)[0] + '.zip'
@@ -522,7 +518,7 @@ class DataProcessor:
 
             # Write the CSV data to a zip file
             with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-                zipf.writestr(filename, csv_bytes)
+                zipf.writestr(filename, csv_str)
 
             return f"File saved to {zip_path}"
         except Exception as e:
@@ -533,24 +529,17 @@ class DataProcessor:
         Saves a DataFrame as a zipped Excel (.xlsx) file to the current working directory.
 
         Parameters:
-        :param df: A pandas DataFrame that is to be saved.
+        :param df: A Polars DataFrame that is to be saved.
         :param filename: The name to use for the saved file inside the zip. Defaults to "data.xlsx".
 
         Returns:
         :return: A message indicating the file's location or an error message.
         """
         try:
-            df_copy = df.copy()
-
-            # If df has datetime columns, convert them to timezone-naive
-            for col in df.columns:
-                if isinstance(df[col].dtype, pd.DatetimeTZDtype):
-                    df_copy[col] = df[col].dt.tz_convert(None)
-
             # Write DataFrame to Excel in memory
-            with io.BytesIO() as output:
-                df_copy.to_excel(output, engine='xlsxwriter', sheet_name='Sheet1')
-                excel_data = output.getvalue()
+            excel_data = io.BytesIO()
+            df.write_excel(excel_data)
+            excel_data.seek(0)
 
             # Define zip filename
             zip_filename = filename.rsplit('.', 1)[0] + '.zip'
@@ -558,18 +547,18 @@ class DataProcessor:
 
             # Write the Excel data to a zip file
             with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
-                zipf.writestr(filename, excel_data)
+                zipf.writestr(filename, excel_data.read())
 
             return f"File saved to {zip_path}"
         except Exception as e:
             return f"An error occurred: {e}"
 
-    def calculate_correlation(self, time_series: pd.DataFrame, correlations):
+    def calculate_correlation(self, time_series: pl.DataFrame, correlations):
         """
         Calculate the Pearson Correlation Coefficient between two time series.
 
         Parameters:
-        time_series: A pandas DataFrame that contains a column 'value'.
+        time_series: A Polars DataFrame that contains a column 'value'.
         correlations: A tuple of two elements, each representing the metric to be used for correlation calculation.
 
         Returns:
@@ -577,11 +566,8 @@ class DataProcessor:
         """
         metric_one, metric_two = correlations
 
-        ts_metric_one = time_series[time_series['event'] == metric_one]
-        ts_metric_one = ts_metric_one[~ts_metric_one.index.duplicated(keep='first')]
-
-        ts_metric_two = time_series[time_series['event'] == metric_two]
-        ts_metric_two = ts_metric_two[~ts_metric_two.index.duplicated(keep='first')]
+        ts_metric_one = time_series.filter(pl.col('event') == metric_one).unique(subset=['time'], keep='first')
+        ts_metric_two = time_series.filter(pl.col('event') == metric_two).unique(subset=['time'], keep='first')
 
         # Check for sufficient data
         insufficient_data = []
@@ -594,11 +580,11 @@ class DataProcessor:
             print(f"Insufficient data for {', '.join(insufficient_data)}")
             return None
 
-        # Find common timestamps using index intersection
-        common_timestamps = ts_metric_one.index.intersection(ts_metric_two.index)
+        # Find common timestamps using inner join
+        common_df = ts_metric_one.join(ts_metric_two, on='time', how='inner')
 
-        metric_one_values = ts_metric_one.loc[common_timestamps, 'value'].values
-        metric_two_values = ts_metric_two.loc[common_timestamps, 'value'].values
+        metric_one_values = common_df.select(pl.col('value').alias('value_one')).to_numpy()
+        metric_two_values = common_df.select(pl.col('value').alias('value_two')).to_numpy()
 
         # Check for same length and at least 2 data points
         if len(metric_one_values) != len(metric_two_values):
@@ -608,7 +594,7 @@ class DataProcessor:
             print('Both time series need to have at least 2 data points to calculate correlation.')
             return None
 
-        correlation, p_val = pearsonr(metric_one_values, metric_two_values)
+        correlation, p_val = pearsonr(metric_one_values.squeeze(), metric_two_values.squeeze())
 
         return {"Correlation": correlation, "P-value": p_val, "Metric One": metric_one, "Metric Two": metric_two}
 

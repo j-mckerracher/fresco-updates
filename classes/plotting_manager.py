@@ -2,7 +2,7 @@ import warnings
 import seaborn as sns
 from classes.data_processor import DataProcessor
 from matplotlib import pyplot as plt
-import pandas as pd
+import polars as pl
 
 
 class PlottingManager:
@@ -32,7 +32,7 @@ class PlottingManager:
 
         # Create scatter plot
         plt.figure(figsize=(10, 6))
-        plt.scatter(metric_one, metric_two)
+        plt.scatter(ts_df[ts_df['event'] == metric_one]['value'], ts_df[ts_df['event'] == metric_two]['value'])
         plt.xlabel(metric_one)
         plt.ylabel(metric_two)
         plt.title(f'Scatter plot of {metric_one} and {metric_two}')
@@ -44,7 +44,7 @@ class PlottingManager:
 
         plt.show()
 
-    def plot_data_points_outside_threshold(self, ratio_threshold_value, ts_df: pd.DataFrame):
+    def plot_data_points_outside_threshold(self, ratio_threshold_value, ts_df: pl.DataFrame):
         """
         Plots the ratio of data points that lie outside a specified threshold from a given time series DataFrame. The
         function displays a bar chart indicating the proportions of data points inside and outside the threshold.
@@ -52,7 +52,7 @@ class PlottingManager:
         Parameters:
         :param ratio_threshold_value: A float or integer representing the threshold value against which data points in the
                                       'value' column of the time series DataFrame will be compared.
-        :param ts_df: A pandas DataFrame containing time series data. The DataFrame should have a column named 'value'
+        :param ts_df: A Polars DataFrame containing time series data. The DataFrame should have a column named 'value'
                       which contains the data points to be evaluated.
 
         Returns:
@@ -61,8 +61,8 @@ class PlottingManager:
         threshold = ratio_threshold_value
 
         # Here we calculate the ratio of data outside the threshold
-        num_data_points = len(ts_df['value'])
-        num_outside_threshold = sum(abs(ts_df['value']) > threshold)
+        num_data_points = len(ts_df)
+        num_outside_threshold = ts_df.select(pl.col("value").abs() > threshold).sum()[0, 0]
 
         ratio_outside_threshold = num_outside_threshold / num_data_points
 
@@ -72,12 +72,12 @@ class PlottingManager:
         plt.ylabel('Ratio')
         plt.show()
 
-    def plot_cdf(self, ts_df: pd.DataFrame):
+    def plot_cdf(self, ts_df: pl.DataFrame):
         """
         This function generates a Cumulative Distribution Function (CDF) plot for a given time series DataFrame.
 
         Parameters:
-        :param ts_df: A pandas DataFrame that contains a column 'value'. This column should represent the time series
+        :param ts_df: A Polars DataFrame that contains a column 'value'. This column should represent the time series
                       data for which the CDF will be calculated and plotted.
 
         Returns:
@@ -88,17 +88,17 @@ class PlottingManager:
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
-            time_series_df = ts_df.dropna()
+            time_series_df = ts_df.drop_nulls()
             sns.histplot(time_series_df['value'], cumulative=True, element="step", fill=False)
             plt.title('Cumulative Distribution Function (CDF)')
             plt.show()
 
-    def plot_pdf(self, ts_df: pd.DataFrame):
+    def plot_pdf(self, ts_df: pl.DataFrame):
         """
         This function generates a Probability Density Function (PDF) plot for a given time series DataFrame.
 
         Parameters:
-        :param ts_df: A pandas DataFrame that contains a column 'value'. This column should represent the time series
+        :param ts_df: A Polars DataFrame that contains a column 'value'. This column should represent the time series
                       data for which the PDF will be calculated and plotted.
 
         Returns:
@@ -109,20 +109,20 @@ class PlottingManager:
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
-            time_series_df = ts_df.dropna()
+            time_series_df = ts_df.drop_nulls()
             sns.histplot(time_series_df['value'], kde=True)
             plt.title('Probability Density Function (PDF)')
             plt.show()
 
-    def plot_box_and_whisker(self, df_mean: pd.DataFrame, df_std: pd.DataFrame, df_median: pd.DataFrame):
+    def plot_box_and_whisker(self, df_mean: pl.DataFrame, df_std: pl.DataFrame, df_median: pl.DataFrame):
         """
         This function generates a box and whisker plot for various statistics (mean, median, and standard deviation)
         of a time series data, as contained within provided DataFrames.
 
         Parameters:
-        :param df_mean: A pandas DataFrame that contains a column 'value' with the mean values of the time series data.
-        :param df_std: A pandas DataFrame that contains a column 'value' with the standard deviation values of the time series data.
-        :param df_median: A pandas DataFrame that contains a column 'value' with the median values of the time series data.
+        :param df_mean: A Polars DataFrame that contains a column 'value' with the mean values of the time series data.
+        :param df_std: A Polars DataFrame that contains a column 'value' with the standard deviation values of the time series data.
+        :param df_median: A Polars DataFrame that contains a column 'value' with the median values of the time series data.
 
         Returns:
         :return: This function does not return anything. Instead, it plots a box and whisker plot for the provided
@@ -130,23 +130,23 @@ class PlottingManager:
                  upper quartile values of the data, with a line at the median. The whiskers extend from the box to show
                  the range of the data. Outlier points are those past the end of the whiskers.
         """
-        # Collect statistics into a list of pandas Series or numpy arrays
+        # Collect statistics into a list of Polars Series or numpy arrays
         all_data = []
         labels = []
         color_choices = []
         if df_mean is not None:
-            df_mean.dropna(subset=['value'], inplace=True)
-            all_data.append(df_mean['value'])
+            df_mean = df_mean.drop_nulls(subset=['value'])
+            all_data.append(df_mean['value'].to_numpy())
             labels.append('Mean')
             color_choices.append('pink')
         if df_median is not None:
-            df_median.dropna(subset=['value'], inplace=True)
-            all_data.append(df_median['value'])
+            df_median = df_median.drop_nulls(subset=['value'])
+            all_data.append(df_median['value'].to_numpy())
             labels.append('Median')
             color_choices.append('lightgreen')
         if df_std is not None:
-            df_std.dropna(subset=['value'], inplace=True)
-            all_data.append(df_std['value'])
+            df_std = df_std.drop_nulls(subset=['value'])
+            all_data.append(df_std['value'].to_numpy())
             labels.append('Standard Deviation')
             color_choices.append('lightyellow')
 

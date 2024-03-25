@@ -3,7 +3,7 @@ from typing import Optional
 import psycopg2
 from psycopg2 import OperationalError
 import warnings
-import pandas as pd
+import polars as pl
 from tqdm.notebook import tqdm
 
 
@@ -46,16 +46,16 @@ class DatabaseManager():
     def execute_sql_query(self, query, incoming_df, params=None):
         """
         Executes the provided SQL query using the given database connection and parameters, and returns the result as a
-        pandas DataFrame.
+        polars DataFrame.
 
         Parameters:
         :param query: A string containing the SQL query to be executed.
-        :param incoming_df: A pandas DataFrame in which the results of the SQL query will be stored.
+        :param incoming_df: A polars DataFrame in which the results of the SQL query will be stored.
         :param params: Optional. A list, tuple, or dict containing parameters to be passed to the SQL query. This is used
                        to handle parameterized queries safely.
 
         Returns:
-        :return: A pandas DataFrame containing the results of the executed SQL query. If there's an error in execution or
+        :return: A polars DataFrame containing the results of the executed SQL query. If there's an error in execution or
                  establishing a database connection, the function may return None.
         """
         try:
@@ -66,21 +66,22 @@ class DatabaseManager():
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    incoming_df = pd.read_sql(query, conn, params=params)
+                    incoming_df = pl.from_postgres(conn, query)
 
                 return incoming_df
         except Exception as e:
             print(f"An error occurred: {e}")
 
+
     def execute_sql_query_chunked(self, query, incoming_df, params=None, target_num_chunks=25000):
         """
         Executes the provided SQL query in chunks using the given database connection and parameters,
-        and returns the combined result as a pandas DataFrame. This function is optimized for fetching
+        and returns the combined result as a Polars DataFrame. This function is optimized for fetching
         large datasets by breaking the query into manageable chunks and processing them sequentially.
 
         Parameters:
         :param query: A string containing the SQL query to be executed.
-        :param incoming_df: A pandas DataFrame which may be used to store intermediate results, though the final result
+        :param incoming_df: A Polars DataFrame which may be used to store intermediate results, though the final result
                             is appended to a new DataFrame.
         :param params: Optional. A list, tuple, or dict containing parameters to be passed to the SQL query.
                        This is used to handle parameterized queries safely.
@@ -89,7 +90,7 @@ class DatabaseManager():
                                   the total number of rows by this value.
 
         Returns:
-        :return: A pandas DataFrame containing the results of the executed SQL query combined from all chunks.
+        :return: A Polars DataFrame containing the results of the executed SQL query combined from all chunks.
                  If there's an error in execution or establishing a database connection, the function may return None.
         """
         try:
@@ -98,28 +99,19 @@ class DatabaseManager():
                     print("Failed to establish a database connection.")
                     return
 
-                # Create a cursor object
-                with conn.cursor() as cur:
-                    # Calculate total rows and chunk size
-                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
-                    total_rows = cur.fetchone()[0]
+                # Fetch data with a progress bar
+                pbar = tqdm(total=0,
+                            desc="Fetching rows",
+                            bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
+                                       'Remaining: {remaining} | {rate_fmt}{postfix}]')
 
-                    chunksize = total_rows // target_num_chunks if total_rows > target_num_chunks else total_rows
+                chunks = []
+                for chunk in pl.read_database(query, conn, execute_options={"parameters": params}, iter_batches=True,
+                                              batch_size=target_num_chunks):
+                    chunks.append(chunk)
+                    pbar.update(len(chunk))
 
-                    # Fetch data with a progress bar
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        pbar = tqdm(total=total_rows,
-                                    desc="Fetching rows",
-                                    bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
-                                               'Remaining: {remaining} | {rate_fmt}{postfix}]')
-
-                        chunks = []
-                        for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
-                            chunks.append(chunk)
-                            pbar.update(len(chunk))
-
-                    pbar.close()
-                    return pd.concat(chunks, ignore_index=True)
+                pbar.close()
+                return pl.concat(chunks)
         except Exception as e:
             print(f"An error occurred: {e}")

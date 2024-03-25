@@ -468,7 +468,7 @@ class WidgetStateManager:
                 )
 
                 # Check if the DataFrame is empty
-                if self.base_widget_manager.account_log_df.empty:
+                if self.base_widget_manager.account_log_df.is_empty():
                     no_data = widgets.HTML("<h4>No data found!</h4>")
                     display(no_data)
                     return
@@ -548,7 +548,7 @@ class WidgetStateManager:
                 )
 
                 # Check if the DataFrame is empty
-                if self.base_widget_manager.time_series_df.empty:
+                if self.base_widget_manager.time_series_df.is_empty():
                     no_data = widgets.HTML("<h4>No data found!</h4>")
                     display(no_data)
                     return  # Exit the function after printing the message

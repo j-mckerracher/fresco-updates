@@ -1,6 +1,6 @@
 import ipywidgets as widgets
 from datetime import datetime
-import pandas as pd
+import polars as pl
 from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
 from tqdm.notebook import tqdm
@@ -27,11 +27,11 @@ class BaseWidgetManager:
         self.time_window_valid_jobs = False
         self.MAX_DAYS_HOSTS = 5
         self.MAX_DAYS_JOBS = 180
-        self.account_log_df = pd.DataFrame()
+        self.account_log_df = pl.DataFrame()
         self.host_data_sql_query = ""
         self.where_conditions_hosts = []
         self.time_window_valid_hosts = False
-        self.time_series_df = pd.DataFrame()
+        self.time_series_df = pl.DataFrame()
 
     def init_common_widgets(self):
         self.query_cols_message = widgets.HTML("<h4>Select columns:</h4>")
@@ -382,11 +382,10 @@ class BaseWidgetManager:
 
     def display_plots(self):
         try:
-            ts_df = self.time_series_df.copy()
+            ts_df = self.time_series_df.clone()
             try:
-                ts_df['time'] = pd.to_datetime(ts_df['time'])
-                ts_df = ts_df.set_index('time')
-                ts_df = ts_df.sort_index()
+                ts_df = ts_df.with_column(pl.col('time').str.strptime(pl.Datetime))
+                ts_df = ts_df.sort('time')
             except Exception as e:
                 print("")
 
@@ -396,9 +395,7 @@ class BaseWidgetManager:
                 "Standard Deviation": self.data_processor.get_standard_deviation if "Standard Deviation" in self.stats.value else "",
                 "PDF": self.plotting_service.plot_pdf if "PDF" in self.stats.value else "",
                 "CDF": self.plotting_service.plot_cdf if "CDF" in self.stats.value else "",
-                "Ratio of Data Outside Threshold": self.plotting_service.plot_data_points_outside_threshold if 'Ratio of Data Outside '
-                                                                                              'Threshold' in
-                                                                                              self.stats.value else ""
+                "Ratio of Data Outside Threshold": self.plotting_service.plot_data_points_outside_threshold if 'Ratio of Data Outside Threshold' in self.stats.value else ""
             }
 
             unit_map = {
@@ -454,7 +451,7 @@ class BaseWidgetManager:
                 for unit in units:
                     unit_stat_dfs[unit] = {}
                     for metric in self.stats.value:
-                        metric_df = ts_df.query(f"`event` == '{unit_map[unit]}'")
+                        metric_df = ts_df.filter(pl.col('event') == unit_map[unit])
                         rolling = False
 
                         if self.interval_type.value == "Time":
@@ -541,9 +538,9 @@ class BaseWidgetManager:
 
                     # If rolling is false, use the entire metric_df for the box plot
                     if not rolling:
-                        df_mean = pd.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
-                        df_std = pd.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
-                        df_median = pd.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
+                        df_mean = pl.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
+                        df_std = pl.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
+                        df_median = pl.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
 
                         if df_mean is not None:
                             df_mean.columns = ['value']
@@ -582,10 +579,10 @@ class BaseWidgetManager:
         :return: None. This method outputs the query and parameters to the notebook directly.
         """
         query, params = self.data_processor.construct_job_data_query(self.where_conditions_jobs,
-                                                      self.job_data_columns_dropdown.value,
-                                                      self.validate_button_jobs.description,
-                                                      self.start_time_jobs.value,
-                                                      self.end_time_jobs.value)
+                                                                     self.job_data_columns_dropdown.value,
+                                                                     self.validate_button_jobs.description,
+                                                                     self.start_time_jobs.value,
+                                                                     self.end_time_jobs.value)
         with self.query_output_jobs:
             clear_output(wait=True)
             display(widgets.HTML("<h4>Current SQL query:</h4>"))
@@ -612,10 +609,10 @@ class BaseWidgetManager:
         :return: None. This method outputs the query to the notebook directly and updates the class attribute.
         """
         query, params = self.data_processor.construct_query_hosts(self.where_conditions_hosts,
-                                                   self.host_data_columns_dropdown.value,
-                                                   self.validate_button_hosts.description,
-                                                   self.start_time_hosts.value,
-                                                   self.end_time_hosts.value)
+                                                                  self.host_data_columns_dropdown.value,
+                                                                  self.validate_button_hosts.description,
+                                                                  self.start_time_hosts.value,
+                                                                  self.end_time_hosts.value)
         with self.query_output_hosts:
             clear_output(wait=True)
             display(widgets.HTML("<h4>Current SQL query:</h4>"))
