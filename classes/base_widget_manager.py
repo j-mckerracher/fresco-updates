@@ -1,6 +1,7 @@
 import ipywidgets as widgets
 from datetime import datetime
 import polars as pl
+import pandas as pd
 from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
 from tqdm.notebook import tqdm
@@ -384,8 +385,8 @@ class BaseWidgetManager:
         try:
             ts_df = self.time_series_df.clone()
             try:
-                ts_df = ts_df.with_column(pl.col('time').str.strptime(pl.Datetime))
-                ts_df = ts_df.sort('time')
+                ts_df = ts_df.with_column(pl.col('time').str.strptime(pl.Datetime))  # Convert 'time' to datetime
+                ts_df = ts_df.sort('time')  # Sort by 'time' column
             except Exception as e:
                 print("")
 
@@ -395,7 +396,9 @@ class BaseWidgetManager:
                 "Standard Deviation": self.data_processor.get_standard_deviation if "Standard Deviation" in self.stats.value else "",
                 "PDF": self.plotting_service.plot_pdf if "PDF" in self.stats.value else "",
                 "CDF": self.plotting_service.plot_cdf if "CDF" in self.stats.value else "",
-                "Ratio of Data Outside Threshold": self.plotting_service.plot_data_points_outside_threshold if 'Ratio of Data Outside Threshold' in self.stats.value else ""
+                "Ratio of Data Outside Threshold": self.plotting_service.plot_data_points_outside_threshold if 'Ratio of Data Outside '
+                                                                                                               'Threshold' in
+                                                                                                               self.stats.value else ""
             }
 
             unit_map = {
@@ -482,6 +485,16 @@ class BaseWidgetManager:
                         # Update the progress bar
                         pbar.update(1)
 
+                        # Check if the metric exists in unit_stat_dfs[unit] before accessing it
+                        if metric in unit_stat_dfs[unit]:
+                            # Convert Polars DataFrame/Series to Pandas DataFrame/Series
+                            if isinstance(unit_stat_dfs[unit][metric], pl.DataFrame):
+                                unit_stat_dfs[unit][metric] = unit_stat_dfs[unit][metric].to_pandas()
+                                print(f"{unit_stat_dfs[unit][metric]}")
+                            elif isinstance(unit_stat_dfs[unit][metric], pl.Series):
+                                unit_stat_dfs[unit][metric] = unit_stat_dfs[unit][metric].to_pandas()
+                                print(f"{unit_stat_dfs[unit][metric]}")
+
                         # Only calculate and plot basic stats if rolling is True
                         if rolling:
                             unit_stat_dfs[unit][metric] = metric_func_map[metric](metric_df, rolling=True,
@@ -538,9 +551,9 @@ class BaseWidgetManager:
 
                     # If rolling is false, use the entire metric_df for the box plot
                     if not rolling:
-                        df_mean = pl.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
-                        df_std = pl.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
-                        df_median = pl.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
+                        df_mean = pd.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
+                        df_std = pd.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
+                        df_median = pd.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
 
                         if df_mean is not None:
                             df_mean.columns = ['value']

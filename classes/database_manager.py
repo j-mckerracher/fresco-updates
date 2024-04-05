@@ -72,7 +72,6 @@ class DatabaseManager():
         except Exception as e:
             print(f"An error occurred: {e}")
 
-
     def execute_sql_query_chunked(self, query, incoming_df, params=None, target_num_chunks=25000):
         """
         Executes the provided SQL query in chunks using the given database connection and parameters,
@@ -99,8 +98,15 @@ class DatabaseManager():
                     print("Failed to establish a database connection.")
                     return
 
+                # Create a cursor object
+                with conn.cursor() as cur:
+                    print("Fetching data . . .")
+                    # Calculate total rows
+                    cur.execute(f"SELECT COUNT(*) FROM ({query}) as sub_query", params)
+                    total_rows = cur.fetchone()[0]
+
                 # Fetch data with a progress bar
-                pbar = tqdm(total=0,
+                pbar = tqdm(total=total_rows,
                             desc="Fetching rows",
                             bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
                                        'Remaining: {remaining} | {rate_fmt}{postfix}]')

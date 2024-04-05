@@ -1,5 +1,6 @@
 from scipy.stats import pearsonr
 import polars as pl
+import pandas as pd
 import zipfile
 import re
 import io
@@ -399,83 +400,86 @@ class DataProcessor:
 
         return query, params
 
-    def get_mean(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
+    def get_mean(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
         """
         Calculates the mean of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
         basis.
 
         Parameters:
-        :param time_series: A Polars DataFrame that contains a column 'value'. The mean is calculated on the 'value'
+        :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
                             column.
-        :param rolling: A boolean indicating whether the mean should be calculated for the entire DataFrame (False) or
+        :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
                         on a rolling window basis (True).
-        :param window: The size of the rolling window for which the mean is to be calculated. It should be specified
-                       in string format like use d for days, h for hours, m for minutes, and s for seconds. This parameter
+        :param window: The size of the rolling window for which the median is to be calculated. It should be specified
+                       in string format like use D for days, H for hours, T for minutes, and S for seconds. This parameter
                        is considered only if rolling is set to True.
 
         Returns:
-        :return: A Polars DataFrame or Series which contains the mean of the 'value' column of the provided time_series
-                 DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window mean. If
-                 rolling is False, the result will be a Series with the overall mean.
+        :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
+                 DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
+                 rolling is False, the result will be a Series with the overall median.
         """
-        result = time_series.drop(['jid', 'host', 'event', 'unit'])
+        result = time_series.copy()
+        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
         if rolling:
-            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').mean())
+            return result.rolling(window=window).mean()
 
-        return result.select(pl.col('value').mean())
+        return result.mean()
 
-    def get_median(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
+    def get_median(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
         """
         Calculates the median of the provided time_series DataFrame, either on the entire DataFrame or on a rolling window
         basis.
 
         Parameters:
-        :param time_series: A Polars DataFrame that contains a column 'value'. The median is calculated on the 'value'
+        :param time_series: A pandas DataFrame that contains a column 'value'. The median is calculated on the 'value'
                             column.
         :param rolling: A boolean indicating whether the median should be calculated for the entire DataFrame (False) or
                         on a rolling window basis (True).
         :param window: The size of the rolling window for which the median is to be calculated. It should be specified
-                       in string format like use d for days, h for hours, m for minutes, and s for seconds. This parameter
+                       in string format like use D for days, H for hours, T for minutes, and S for seconds. This parameter
                        is considered only if rolling is set to True.
 
         Returns:
-        :return: A Polars DataFrame or Series which contains the median of the 'value' column of the provided time_series
+        :return: A pandas DataFrame or Series which contains the median of the 'value' column of the provided time_series
                  DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window median. If
                  rolling is False, the result will be a Series with the overall median.
         """
-        result = time_series.drop(['jid', 'host', 'event', 'unit'])
+        result = time_series.copy()
+        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
         if rolling:
-            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').median())
+            return result.rolling(window=window).median()
 
-        return result.select(pl.col('value').median())
+        return result.median()
 
-    def get_standard_deviation(self, time_series: pl.DataFrame, rolling=False, window=None) -> pl.DataFrame:
+    def get_standard_deviation(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
         """
         Calculates the standard deviation of the provided time_series DataFrame, either on the entire DataFrame or on a
         rolling window basis.
 
         Parameters:
-        :param time_series: A Polars DataFrame that contains a column 'value'. The standard deviation is calculated on the
+        :param time_series: A pandas DataFrame that contains a column 'value'. The standard deviation is calculated on the
                             'value' column.
         :param rolling: A boolean indicating whether the standard deviation should be calculated for the entire DataFrame
                         (False) or on a rolling window basis (True).
         :param window: The size of the rolling window for which the standard deviation is to be calculated. It should be
-                        specified in string format like use d for days, h for hours, m for minutes, and s for seconds. This
+                        specified in string format like use D for days, H for hours, T for minutes, and S for seconds. This
                         parameter is considered only if rolling is set to True.
 
         Returns:
-        :return: A Polars DataFrame or Series which contains the standard deviation of the 'value' column of the provided
+        :return: A pandas DataFrame or Series which contains the standard deviation of the 'value' column of the provided
                 time_series DataFrame. If rolling is set to True, the result will be a DataFrame with the rolling window
                 standard deviation. If rolling is False, the result will be a Series with the overall standard deviation.
         """
-        result = time_series.drop(['jid', 'host', 'event', 'unit'])
+        result = time_series.copy()
+        result.drop(['jid', 'host', 'event', 'unit'], axis=1, inplace=True)
 
         if rolling:
-            return result.groupby_rolling(index_column='time', period=window).agg(pl.col('value').std())
+            return result.rolling(window=window).std()
 
-        return result.select(pl.col('value').std())
+        return result.std()
 
     def remove_columns(self):
         """
