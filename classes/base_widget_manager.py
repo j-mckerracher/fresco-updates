@@ -485,15 +485,13 @@ class BaseWidgetManager:
                         # Update the progress bar
                         pbar.update(1)
 
-                        # Check if the metric exists in unit_stat_dfs[unit] before accessing it
-                        if metric in unit_stat_dfs[unit]:
-                            # Convert Polars DataFrame/Series to Pandas DataFrame/Series
-                            if isinstance(unit_stat_dfs[unit][metric], pl.DataFrame):
-                                unit_stat_dfs[unit][metric] = unit_stat_dfs[unit][metric].to_pandas()
-                                print(f"{unit_stat_dfs[unit][metric]}")
-                            elif isinstance(unit_stat_dfs[unit][metric], pl.Series):
-                                unit_stat_dfs[unit][metric] = unit_stat_dfs[unit][metric].to_pandas()
-                                print(f"{unit_stat_dfs[unit][metric]}")
+                        # Convert Polars DataFrame/Series to Pandas DataFrame/Series
+                        if isinstance(metric_df, pl.DataFrame):
+                            metric_df = metric_df.to_pandas()
+                            print(f"{metric_df}")
+                        elif isinstance(metric_df, pl.Series):
+                            metric_df = metric_df.to_pandas()
+                            print(f"{metric_df}")
 
                         # Only calculate and plot basic stats if rolling is True
                         if rolling:
