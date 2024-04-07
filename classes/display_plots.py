@@ -101,7 +101,7 @@ class DisplayPlots:
 
             with plt.style.context('fivethirtyeight'):
                 unit_stat_dfs = self._calculate_unit_stats(ts_df, units, unit_map, metric_func_map, outputs, pbar)
-                self._plot_box_and_whisker(units, unit_stat_dfs, outputs)
+                self._plot_box_and_whisker(units, unit_stat_dfs, outputs, ts_df, unit_map)
 
             message_display.value = "Plotting complete"
             display(tab)
@@ -226,14 +226,24 @@ class DisplayPlots:
         else:
             return None
 
-    def _plot_box_and_whisker(self, units, unit_stat_dfs, outputs):
+    def _plot_box_and_whisker(self, units, unit_stat_dfs, outputs, ts_df, unit_map):
         for unit in units:
             df_mean = unit_stat_dfs[unit].get('Mean')
             df_std = unit_stat_dfs[unit].get('Standard Deviation')
             df_median = unit_stat_dfs[unit].get('Median')
 
             if not any(df is not None for df in [df_mean, df_std, df_median]):
-                continue
+                metric_df = ts_df.query(f"`event` == '{unit_map[unit]}'")
+                if 'Mean' in self.stats.value:
+                    df_mean = pd.DataFrame(metric_df['value'])
+                    df_mean.columns = ['value']
+                if 'Standard Deviation' in self.stats.value:
+                    df_std = pd.DataFrame(metric_df['value'])
+                    df_std.columns = ['value']
+                if 'Median' in self.stats.value:
+                    df_median = pd.DataFrame(metric_df['value'])
+                    df_median.columns = ['value']
 
-            with outputs[unit]['Box and Whisker']:
-                self.plotting_service.plot_box_and_whisker(df_mean, df_std, df_median)
+            if any(df is not None for df in [df_mean, df_std, df_median]):
+                with outputs[unit]['Box and Whisker']:
+                    self.plotting_service.plot_box_and_whisker(df_mean, df_std, df_median)
