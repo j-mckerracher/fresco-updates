@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
-from tqdm.notebook import tqdm
+from classes.display_plots import DisplayPlots
 from classes.data_processor import DataProcessor
 from classes.database_manager import DatabaseManager
 from classes.plotting_manager import PlottingManager
@@ -382,184 +382,18 @@ class BaseWidgetManager:
 
     def display_plots(self):
         try:
-            ts_df = self.time_series_df.copy()
-            try:
-                ts_df['time'] = pd.to_datetime(ts_df['time'])
-                ts_df = ts_df.set_index('time')
-                ts_df = ts_df.sort_index()
-            except Exception as e:
-                print("")
-
-            metric_func_map = {
-                "Mean": self.data_processor.get_mean if "Mean" in self.stats.value else "",
-                "Median": self.data_processor.get_median if "Median" in self.stats.value else "",
-                "Standard Deviation": self.data_processor.get_standard_deviation if "Standard Deviation" in self.stats.value else "",
-                "PDF": self.plotting_service.plot_pdf if "PDF" in self.stats.value else "",
-                "CDF": self.plotting_service.plot_cdf if "CDF" in self.stats.value else "",
-                "Ratio of Data Outside Threshold": self.plotting_service.plot_data_points_outside_threshold if 'Ratio of Data Outside '
-                                                                                              'Threshold' in
-                                                                                              self.stats.value else ""
-            }
-
-            unit_map = {
-                "CPU %": "cpuuser",
-                "GPU %": "gpu_usage",
-                "GB:memused": "memused",
-                "GB:memused_minus_diskcache": "memused_minus_diskcache",
-                "GB/s": "block",
-                "MB/s": "nfs"
-            }
-
-            # get units requested in SQL query
-            units = self.data_processor.parse_host_data_query(self.host_data_sql_query)
-
-            # Initialize the tqdm progress bar
-            total_operations = len(units) * len(self.stats.value)
-            pbar = tqdm(total=total_operations, desc="Generating chart/s")
-
-            # set up outputs and tabbed layout
-            tab = widgets.Tab()
-            outputs = {}
-            stat_values = []
-            basic_stats = ['Mean', 'Median', 'Standard Deviation']
-
-            # Populate the outputs dictionary
-            for unit in units:
-                outputs[unit] = {}
-                if any(stat in self.stats.value for stat in basic_stats):
-                    for stat in self.stats.value + ('Box and Whisker',):
-                        outputs[unit][stat] = widgets.Output()
-                else:
-                    for stat in self.stats.value:
-                        outputs[unit][stat] = widgets.Output()
-
-            # set the tab children
-            if any(stat in self.stats.value for stat in basic_stats):
-                tab.children = [widgets.Accordion([widgets.Box([widgets.Label(stat), outputs[unit][stat]]) for stat in
-                                                   self.stats.value + ('Box and Whisker',)],
-                                                  titles=self.stats.value + ('Box and Whisker',)) for unit in units]
-            else:
-                tab.children = [
-                    widgets.Accordion(
-                        [widgets.Box([widgets.Label(stat), outputs[unit][stat]]) for stat in self.stats.value],
-                        titles=self.stats.value) for unit in units]
-
-            tab.titles = units
-            message_display = widgets.HTML(value="Initializing . . .")
-            display(message_display)
-
-            with plt.style.context('fivethirtyeight'):
-                unit_stat_dfs = {}
-                time_map = {'Days': 'D', 'Hours': 'H', 'Minutes': 'T', 'Seconds': 'S'}
-                for unit in units:
-                    unit_stat_dfs[unit] = {}
-                    for metric in self.stats.value:
-                        metric_df = ts_df.query(f"`event` == '{unit_map[unit]}'")
-                        rolling = False
-
-                        if self.interval_type.value == "Time":
-                            rolling = True
-                            try:
-                                window = f"{self.time_value.value}{time_map[self.time_units.value]}"
-                            except KeyError:
-                                print("Error! Please ensure a selection was made in the 'Interval Unit' dropdown.")
-                        elif self.interval_type.value == "Count":
-                            rolling = True
-                            window = self.time_value.value
-
-                        # Handle special cases outside the rolling condition
-                        if metric == "PDF":
-                            with outputs[unit][metric]:
-                                unit_stat_dfs[unit][metric] = metric_func_map[metric](metric_df)
-                            continue
-                        elif metric == "CDF":
-                            with outputs[unit][metric]:
-                                unit_stat_dfs[unit][metric] = metric_func_map[metric](metric_df)
-                            continue
-                        elif metric == "Ratio of Data Outside Threshold":
-                            with outputs[unit][metric]:
-                                unit_stat_dfs[unit][metric] = metric_func_map[metric](self.ratio_threshold.value,
-                                                                                      metric_df)
-                            continue
-
-                        # Update the progress bar
-                        pbar.update(1)
-
-                        # Only calculate and plot basic stats if rolling is True
-                        if rolling:
-                            unit_stat_dfs[unit][metric] = metric_func_map[metric](metric_df, rolling=True,
-                                                                                  window=window)
-                            with outputs[unit][metric]:
-                                unit_stat_dfs[unit][metric].plot()
-                                x_axis_label = ""
-                                if self.interval_type.value == "Count":
-                                    x_axis_label += f"Count - Rolling Window: {self.time_value.value} Rows"
-                                elif self.interval_type.value == "Time":
-                                    x_axis_label += f"Timestamp - Rolling Window: {self.time_value.value}{time_map[self.time_units.value]}"
-                                y_axis_label = unit
-                                plt.gcf().autofmt_xdate()  # auto formats datetimes
-                                plt.style.use('fivethirtyeight')
-                                plt.title(f"{unit} {metric}")
-                                self.conditionally_display_legend()
-                                plt.xlabel(x_axis_label)
-                                plt.ylabel(y_axis_label)
-                                plt.show()
-                        else:
-                            # Plot the entire metric_df for the specified metric
-                            with outputs[unit][metric]:
-                                metric_df['value'].plot()
-                                plt.gcf().autofmt_xdate()
-                                plt.style.use('fivethirtyeight')
-                                plt.title(f"{unit} {metric} Over Time")
-                                plt.xlabel("Timestamp")
-                                plt.ylabel(unit)
-
-                                # Calculate the statistic value
-                                if metric == "Mean":
-                                    stat_value = metric_df['value'].mean()
-                                elif metric == "Median":
-                                    stat_value = metric_df['value'].median()
-                                elif metric == "Standard Deviation":
-                                    stat_value = metric_df['value'].std()
-                                else:
-                                    stat_value = None
-
-                                # Annotate the plot with the statistic value
-                                if stat_value is not None:
-                                    annotation_text = f"{metric}: {stat_value:.2f}"
-                                    plt.annotate(annotation_text, xy=(0.05, 0.95), xycoords='axes fraction',
-                                                 fontsize=10,
-                                                 verticalalignment='top',
-                                                 bbox=dict(boxstyle="square", facecolor="white"))
-
-                                plt.show()
-
-                    # Get the stats dataframes
-                    df_mean = unit_stat_dfs[unit].get('Mean')
-                    df_std = unit_stat_dfs[unit].get('Standard Deviation')
-                    df_median = unit_stat_dfs[unit].get('Median')
-
-                    # If rolling is false, use the entire metric_df for the box plot
-                    if not rolling:
-                        df_mean = pd.DataFrame(metric_df['value']) if 'Mean' in self.stats.value else None
-                        df_std = pd.DataFrame(metric_df['value']) if 'Standard Deviation' in self.stats.value else None
-                        df_median = pd.DataFrame(metric_df['value']) if 'Median' in self.stats.value else None
-
-                        if df_mean is not None:
-                            df_mean.columns = ['value']
-                        if df_std is not None:
-                            df_std.columns = ['value']
-                        if df_median is not None:
-                            df_median.columns = ['value']
-
-                    # Plot box and whisker
-                    if any(df is not None for df in [df_mean, df_std, df_median]):
-                        with outputs[unit]['Box and Whisker']:
-                            self.plotting_service.plot_box_and_whisker(df_mean, df_std, df_median)
-
-                message_display.value = "Plotting complete"
-                display(tab)
-                pbar.close()
+            display_plots = DisplayPlots(
+                time_series_df=self.time_series_df,
+                data_processor=self.data_processor,
+                plotting_service=self.plotting_service,
+                host_data_sql_query=self.host_data_sql_query,
+                stats=self.stats,
+                interval_type=self.interval_type,
+                time_value=self.time_value,
+                time_units=self.time_units,
+                ratio_threshold=self.ratio_threshold
+            )
+            display_plots.display_plots()
         except NameError as e:
             print("ERROR: Please make sure to run the previous notebook cells before executing this one.")
 
