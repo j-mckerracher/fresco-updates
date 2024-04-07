@@ -9,6 +9,13 @@ class PlottingManager:
     def __init__(self, base_widget_manager):
         self.data_processor = DataProcessor(base_widget_manager)
 
+    def conditionally_display_legend(self):
+        """
+        This is a utility function to conditionally display the legend only if there are labeled data series.
+        """
+        if len(plt.gca().get_legend_handles_labels()[0]) > 0:
+            plt.legend(loc='upper left', fontsize="10")
+
     def plot_correlation(self, correlations, ts_df):
         """
         Plot the Pearson Correlation Coefficient.

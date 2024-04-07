@@ -90,22 +90,24 @@ class DisplayPlots:
             units = self.data_processor.parse_host_data_query(self.host_data_sql_query)
 
             total_operations = len(units) * len(self.stats.value)
-            pbar = tqdm(total=total_operations, desc="Generating chart/s")
+
+            # Create the progress bar
+            pbar = tqdm(total=total_operations,
+                        desc="Generating chart/s",
+                        bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
+                                   'Remaining: {remaining} | {rate_fmt}{postfix}]')
 
             tab = widgets.Tab()
             outputs = self._initialize_outputs(units)
 
             self._set_tab_children(tab, outputs, units)
-            message_display = widgets.HTML(value="Initializing . . .")
-            display(message_display)
 
             with plt.style.context('fivethirtyeight'):
                 unit_stat_dfs = self._calculate_unit_stats(ts_df, units, unit_map, metric_func_map, outputs, pbar)
                 self._plot_box_and_whisker(units, unit_stat_dfs, outputs, ts_df, unit_map)
 
-            message_display.value = "Plotting complete"
-            display(tab)
             pbar.close()
+            display(tab)
         except NameError as e:
             print("ERROR: Please make sure to run the previous notebook cells before executing this one.")
 
