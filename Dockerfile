@@ -5,7 +5,7 @@ FROM jupyter/minimal-notebook
 ENV DBHOST=""
 ENV DBUSER=""
 ENV DBPW=""
-ENV DBNAME=""
+ENV DBNAME="postgres"
 
 # Install necessary system packages
 USER root
@@ -19,11 +19,14 @@ RUN apt-get update && \
 RUN pip install --upgrade pip
 RUN pip install matplotlib pandas ipywidgets IPython psycopg2-binary scipy seaborn tqdm
 
-# Copy your notebooks and code to the container
-COPY docker_source /home/work
+# Copy your notebooks, code, and Jupyter config to the container
+COPY docker_source /home/jovyan
+
+# Make the start-notebook.sh script executable
+RUN chmod +x /home/jovyan/start-notebook.sh
 
 # Set the working directory
-WORKDIR /home/work
+WORKDIR /home/jovyan
 
-# Set the default command to start Jupyter Lab
-CMD ["start-notebook.sh", "--NotebookApp.token=''"]
+# Set the default command to start Jupyter Notebook
+ENTRYPOINT ["/home/jovyan/start-notebook.sh"]
