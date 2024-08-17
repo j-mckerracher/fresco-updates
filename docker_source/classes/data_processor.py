@@ -293,24 +293,27 @@ class DataProcessor:
         else:
             query = f"SELECT {selected_columns} FROM {table_name}"
 
-        # Initialize params and local conditions list
-        params = []
-        local_conditions = where_conditions_hosts.copy()  # Start with the conditions passed in
+        # Initialize params as a dictionary
+        params = {}
+        local_conditions = where_conditions_hosts.copy()
 
         # Add the values from where_conditions_values to params
-        params.extend(self.base_widget_manager.where_conditions_values)
+        for i, value in enumerate(self.base_widget_manager.where_conditions_values):
+            params[f'value_{i}'] = value
 
         # Handle time validation
         if validate_button_hosts == "Times Valid":
-            local_conditions.append(("time", "BETWEEN", "%s AND %s"))
-            params.extend([start_time_hosts, end_time_hosts])
+            local_conditions.append(("time", "BETWEEN", ":start_time AND :end_time"))
+            params['start_time'] = start_time_hosts
+            params['end_time'] = end_time_hosts
 
         # Handle IN condition
         in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea.value.split(',')]
-        if in_values and in_values[0]:  # Check if the first value is not empty
-            in_clause = ', '.join(['%s'] * len(in_values))
+        if in_values and in_values[0]:
+            in_clause = ', '.join([f':in_value_{i}' for i in range(len(in_values))])
             local_conditions.append((self.base_widget_manager.in_values_dropdown.value, "IN", f"({in_clause})"))
-            params.extend(in_values)
+            for i, value in enumerate(in_values):
+                params[f'in_value_{i}'] = value
 
         # Construct the WHERE clause
         if local_conditions:
@@ -328,32 +331,14 @@ class DataProcessor:
         return query, params
 
     def construct_job_data_query(self, where_conditions_jobs, job_data_columns_dropdown, validate_button_jobs,
-                                 start_time_jobs,
-                                 end_time_jobs):
-        """
-        Constructs an SQL query based on the specified conditions and selected columns for job data retrieval.
-
-        Parameters:
-        :param where_conditions_jobs: A list of tuples, where each tuple contains three elements - the column name, the
-                                      operation (e.g., '=', '<>', '<', '>'), and the value to be used in the WHERE clause.
-        :param job_data_columns_dropdown: A list of strings, each representing a selected column for the query.
-        :param validate_button_jobs: A string indicating the validation status for time. If set to "Times Valid", the
-                                     start_time_jobs and end_time_jobs are considered.
-        :param start_time_jobs: A datetime object or string representing the start time for the query's time condition.
-                                This is considered if validate_button_jobs is set to "Times Valid".
-        :param end_time_jobs: A datetime object or string representing the end time for the query's time condition. This
-                              is considered if validate_button_jobs is set to "Times Valid".
-
-        Returns:
-        :return: A tuple containing two elements. The first element is a string representing the constructed SQL query. The
-                 second element is a list containing the parameter values to be used in the query.
-        """
+                                 start_time_jobs, end_time_jobs):
         valid_columns = {'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
                          'nhosts', 'ncores', 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode',
                          'host_list', '*'}
+
         selected_columns = job_data_columns_dropdown
 
-        # Validate that the selected columns are all in the set of valid columns
+        # Validate selected columns
         if not all(column in valid_columns for column in selected_columns):
             raise ValueError("Invalid column name selected")
 
@@ -365,24 +350,27 @@ class DataProcessor:
         else:
             query = f"SELECT {selected_columns_str} FROM {table_name}"
 
-        # Initialize params and local conditions list
-        params = []
-        local_conditions = [(col, op, "%s") for col, op, _ in where_conditions_jobs]
+        # Initialize params as a dictionary
+        params = {}
+        local_conditions = [(col, op, f":param_{i}") for i, (col, op, _) in enumerate(where_conditions_jobs)]
 
-        # Extract values and add to params
-        params.extend([val for _, _, val in where_conditions_jobs])
+        # Add where conditions to params
+        for i, (_, _, val) in enumerate(where_conditions_jobs):
+            params[f'param_{i}'] = val
 
         # Handle time validation
         if validate_button_jobs == "Times Valid":
-            local_conditions.append(("start_time", "BETWEEN", "%s AND %s"))
-            params.extend([start_time_jobs, end_time_jobs])
+            local_conditions.append(("start_time", "BETWEEN", ":start_time AND :end_time"))
+            params['start_time'] = start_time_jobs
+            params['end_time'] = end_time_jobs
 
         # Handle IN condition
         in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea_jobs.value.split(',')]
-        if in_values and in_values[0]:  # Check if the first value is not empty
-            in_clause = ', '.join(['%s'] * len(in_values))
+        if in_values and in_values[0]:
+            in_clause = ', '.join([f':in_value_{i}' for i in range(len(in_values))])
             local_conditions.append((self.base_widget_manager.in_values_dropdown_jobs.value, "IN", f"({in_clause})"))
-            params.extend(in_values)
+            for i, value in enumerate(in_values):
+                params[f'in_value_{i}'] = value
 
         # Construct the WHERE clause
         if local_conditions:

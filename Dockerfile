@@ -1,11 +1,10 @@
 # Use the official Jupyter minimal notebook image as the base image
 FROM jupyter/minimal-notebook
 
-# Set environment variables for the notebook
-ENV DBHOST=""
-ENV DBUSER=""
-ENV DBPW=""
-ENV DBNAME="postgres"
+# Set AWS credentials and region
+ENV AWS_ACCESS_KEY_ID=""
+ENV AWS_SECRET_ACCESS_KEY=""
+ENV AWS_DEFAULT_REGION=us-east-1
 
 # Install necessary system packages
 USER root
@@ -15,9 +14,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install necessary Python packages
+# Install necessary Python packages, including boto3 and pyathena
 RUN pip install --upgrade pip
-RUN pip install matplotlib pandas ipywidgets IPython psycopg2-binary scipy seaborn tqdm
+RUN pip install matplotlib pandas ipywidgets IPython psycopg2-binary scipy seaborn tqdm boto3 PyAthena
 
 # Copy your notebooks, code, and Jupyter config to the container
 COPY docker_source /home/jovyan
