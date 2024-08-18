@@ -34,9 +34,22 @@ class DatabaseManager():
                     print("Failed to establish a database connection.")
                     return None
 
+                # Manually format the query with the actual parameter values
+                if params:
+                    for key, value in params.items():
+                        if isinstance(value, datetime):
+                            value = value.strftime('%Y-%m-%d %H:%M:%S')
+                        query = query.replace(f":{key}", f"CAST('{value}' AS timestamp)")
+
+                # Prepend the database name to the table in the query
+                query = query.replace('FROM host_data', 'FROM fresco_data.host_data')
+                query = query.replace('FROM job_data', 'FROM fresco_data.job_data')
+
+                print(f"Formatted query: {query}")
+
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    df = pd.read_sql(query, conn, params=params)
+                    df = pd.read_sql(query, conn)
 
                 return df
         except Exception as e:
