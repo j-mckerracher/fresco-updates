@@ -80,13 +80,16 @@ class DatabaseManager():
 
                 print(f"Formatted query: {query}")
 
-                # Calculate total rows and chunk size
-                total_rows = pd.read_sql(f"SELECT COUNT(*) FROM ({query}) as sub_query", conn).iloc[0, 0]
+                # Suppress the specific UserWarning related to Pandas DBAPI2 connection
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=UserWarning)
+                    total_rows = pd.read_sql(f"SELECT COUNT(*) FROM ({query}) as sub_query", conn).iloc[0, 0]
+
                 chunksize = total_rows // target_num_chunks if total_rows > target_num_chunks else total_rows
 
                 # Fetch data with a progress bar
                 with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
+                    warnings.simplefilter("ignore", category=UserWarning)
                     pbar = tqdm(total=total_rows,
                                 desc="Fetching rows",
                                 bar_format='{desc}: {percentage:.1f}%|{bar}| {n}/{total} [Elapsed: {elapsed} | '
