@@ -425,27 +425,14 @@ class WidgetStateManager:
 
     def on_execute_button_clicked_jobs(self, b):
         """
-        Executes the constructed SQL query for job data, displays the results, and provides options for downloading the data.
+        Executes the constructed query for job data stored in S3, displays the results, and provides options for downloading the data.
 
-        This method validates the selected time window and, if valid, constructs and executes the SQL query for job data
+        This method validates the selected time window and, if valid, constructs and executes the pandas-based query for job data
         using the selected conditions. The results are displayed in the output widget. Additionally, the user is given
         the option to download the results as a CSV or Excel file.
 
         Parameters:
         :param b: The button instance triggering this callback.
-
-        Attributes used:
-        :attr self.time_window_valid_jobs: Boolean indicating if the selected time window is valid.
-        :attr self.output_jobs: Output widget to display the query results or notifications.
-        :attr self.where_conditions_jobs: List of conditions selected for the SQL query.
-        :attr self.job_data_columns_dropdown: Dropdown widget for selecting columns to include in the query.
-        :attr self.validate_button_jobs: Button widget for time window validation.
-        :attr self.start_time_jobs: Datetime picker widget to select the start time for the query.
-        :attr self.end_time_jobs: Datetime picker widget to select the end time for the query.
-        :attr self.account_log_df: DataFrame to store the results of the executed SQL query.
-
-        Returns:
-        :return: None. This method updates class attributes directly and displays the query results or notifications in the output widget.
         """
         with self.base_widget_manager.output_jobs:
             clear_output(wait=True)  # Clear the previous output
@@ -453,19 +440,26 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
-                query, params = self.data_processor.construct_job_data_query(
-                    self.base_widget_manager.where_conditions_jobs,
-                    self.base_widget_manager.job_data_columns_dropdown.value,
-                    self.base_widget_manager.validate_button_jobs.description,
-                    self.base_widget_manager.start_time_jobs.value,
-                    self.base_widget_manager.end_time_jobs.value
+                # Load data from S3 based on the specified date range
+                job_df = self.data_processor.load_parquet_files(
+                    'fresco-job-data',
+                    'job_accounting_',
+                    start_time=self.base_widget_manager.start_time_jobs.value,
+                    end_time=self.base_widget_manager.end_time_jobs.value
                 )
 
-                self.base_widget_manager.account_log_df = self.db_service.execute_sql_query_chunked(
-                    query,
-                    self.base_widget_manager.account_log_df,
-                    params=params
+                # Construct the pandas query
+                query_df = self.data_processor.execute_query_on_dataframe(
+                    job_df,
+                    self.base_widget_manager.where_conditions_jobs,
+                    self.base_widget_manager.job_data_columns_dropdown.value,
+                    validate_time=self.base_widget_manager.validate_button_jobs.description == "Times Valid",
+                    start_time=self.base_widget_manager.start_time_jobs.value,
+                    end_time=self.base_widget_manager.end_time_jobs.value
                 )
+
+                # Update the DataFrame with the query results
+                self.base_widget_manager.account_log_df = query_df
 
                 # Check if the DataFrame is empty
                 if self.base_widget_manager.account_log_df.empty:
@@ -475,7 +469,6 @@ class WidgetStateManager:
 
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
-                print(f"{query}\nParameters: {params}")
                 display(self.base_widget_manager.account_log_df)
 
                 # Code to give user the option to download the filtered data
@@ -506,28 +499,14 @@ class WidgetStateManager:
 
     def on_execute_button_clicked_hosts(self, b):
         """
-        Executes the constructed SQL query for host data, displays the results, and provides options for downloading the data.
+        Executes the constructed query for host data stored in S3, displays the results, and provides options for downloading the data.
 
-        This method validates the selected time window and, if valid, constructs and executes the SQL query for host data
+        This method validates the selected time window and, if valid, constructs and executes the pandas-based query for host data
         using the selected conditions. The results are displayed in the output widget. Additionally, the user is given
         the option to download the results as a CSV or Excel file.
 
         Parameters:
         :param b: The button instance triggering this callback.
-
-        Attributes used:
-        :attr self.time_window_valid_hosts: Boolean indicating if the selected time window is valid.
-        :attr self.output_hosts: Output widget to display the query results or notifications.
-        :attr self.where_conditions_hosts: List of conditions selected for the SQL query.
-        :attr self.host_data_columns_dropdown: Dropdown widget for selecting columns to include in the query.
-        :attr self.validate_button_hosts: Button widget for time window validation.
-        :attr self.start_time_hosts: Datetime picker widget to select the start time for the query.
-        :attr self.end_time_hosts: Datetime picker widget to select the end time for the query.
-        :attr self.time_series_df: DataFrame to store the results of the executed SQL query.
-        :attr self.host_data_sql_query: String to store the constructed SQL query.
-
-        Returns:
-        :return: None. This method updates class attributes directly and displays the query results or notifications in the output widget.
         """
         with self.base_widget_manager.output_hosts:
             clear_output(wait=True)  # Clear the previous output
@@ -535,17 +514,26 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
-                query, params = self.data_processor.construct_query_hosts(
+                # Load data from S3 based on the specified date range
+                host_df = self.data_processor.load_parquet_files(
+                    'fresco-host-data',
+                    'job_ts_metrics_',
+                    start_time=self.base_widget_manager.start_time_hosts.value,
+                    end_time=self.base_widget_manager.end_time_hosts.value
+                )
+
+                # Construct the pandas query
+                query_df = self.data_processor.execute_query_on_dataframe(
+                    host_df,
                     self.base_widget_manager.where_conditions_hosts,
                     self.base_widget_manager.host_data_columns_dropdown.value,
-                    self.base_widget_manager.validate_button_hosts.description,
-                    self.base_widget_manager.start_time_hosts.value,
-                    self.base_widget_manager.end_time_hosts.value)
-                self.base_widget_manager.time_series_df = self.db_service.execute_sql_query_chunked(
-                    query,
-                    self.base_widget_manager.time_series_df,
-                    params=params
+                    validate_time=self.base_widget_manager.validate_button_hosts.description == "Times Valid",
+                    start_time=self.base_widget_manager.start_time_hosts.value,
+                    end_time=self.base_widget_manager.end_time_hosts.value
                 )
+
+                # Update the DataFrame with the query results
+                self.base_widget_manager.time_series_df = query_df
 
                 # Check if the DataFrame is empty
                 if self.base_widget_manager.time_series_df.empty:
@@ -555,13 +543,11 @@ class WidgetStateManager:
 
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
-                print(f"{query}\nParameters: {params}")
                 display(self.base_widget_manager.time_series_df)
 
                 # Code to give user the option to download the filtered data
                 print(
-                    "\nDownload the filtered Host table data? The files will appear on the left in the file "
-                    "explorer.")
+                    "\nDownload the filtered Host table data? The files will appear on the left in the file explorer.")
                 csv_download_button = widgets.Button(description="Download as CSV")
                 excel_download_button = widgets.Button(description="Download as Excel")
 

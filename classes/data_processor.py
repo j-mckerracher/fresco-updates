@@ -282,122 +282,129 @@ class DataProcessor:
         values = [val.strip() for val in values_str.split(',')]
         return values
 
-    def construct_query_hosts(self, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts,
+    import pandas as pd
+
+    def construct_query_hosts(self, df, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts,
                               start_time_hosts, end_time_hosts):
-        selected_columns = ', '.join(host_data_columns_dropdown)
-        table_name = 'host_data'
+        # Select columns
+        selected_columns = host_data_columns_dropdown
+
+        # Create a copy of the DataFrame with the selected columns
+        query_df = df[selected_columns]
 
         # Handle DISTINCT
         if self.base_widget_manager.distinct_checkbox.value:
-            query = f"SELECT DISTINCT {selected_columns} FROM {table_name}"
-        else:
-            query = f"SELECT {selected_columns} FROM {table_name}"
+            query_df = query_df.drop_duplicates()
 
-        # Initialize params and local conditions list
-        params = []
-        local_conditions = where_conditions_hosts.copy()  # Start with the conditions passed in
+        # Initialize local_conditions as a list of boolean conditions
+        local_conditions = []
 
-        # Add the values from where_conditions_values to params
-        params.extend(self.base_widget_manager.where_conditions_values)
+        # Handle basic conditions
+        for col, op, val in where_conditions_hosts:
+            if op == "=":
+                local_conditions.append(query_df[col] == val)
+            elif op == "!=":
+                local_conditions.append(query_df[col] != val)
+            elif op == "<":
+                local_conditions.append(query_df[col] < val)
+            elif op == "<=":
+                local_conditions.append(query_df[col] <= val)
+            elif op == ">":
+                local_conditions.append(query_df[col] > val)
+            elif op == ">=":
+                local_conditions.append(query_df[col] >= val)
 
         # Handle time validation
         if validate_button_hosts == "Times Valid":
-            local_conditions.append(("time", "BETWEEN", "%s AND %s"))
-            params.extend([start_time_hosts, end_time_hosts])
+            local_conditions.append((query_df['time'] >= start_time_hosts) & (query_df['time'] <= end_time_hosts))
 
         # Handle IN condition
         in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea.value.split(',')]
-        if in_values and in_values[0]:  # Check if the first value is not empty
-            in_clause = ', '.join(['%s'] * len(in_values))
-            local_conditions.append((self.base_widget_manager.in_values_dropdown.value, "IN", f"({in_clause})"))
-            params.extend(in_values)
+        if in_values and in_values[0]:
+            local_conditions.append(query_df[self.base_widget_manager.in_values_dropdown.value].isin(in_values))
 
-        # Construct the WHERE clause
+        # Apply all conditions
         if local_conditions:
-            where_clause = " AND ".join([f"{col} {op} {val}" for col, op, val in local_conditions])
-            query += f" WHERE {where_clause}"
+            combined_condition = local_conditions[0]
+            for condition in local_conditions[1:]:
+                combined_condition &= condition
+            query_df = query_df[combined_condition]
 
         # Handle ORDER BY
         if self.base_widget_manager.order_by_dropdown.value != 'None':
-            query += f" ORDER BY {self.base_widget_manager.order_by_dropdown.value} {self.base_widget_manager.order_by_direction_dropdown.value}"
+            query_df = query_df.sort_values(by=self.base_widget_manager.order_by_dropdown.value,
+                                            ascending=self.base_widget_manager.order_by_direction_dropdown.value == 'ASC')
 
         # Handle LIMIT
         if self.base_widget_manager.limit_input.value > 0:
-            query += f" LIMIT {self.base_widget_manager.limit_input.value}"
+            query_df = query_df.head(self.base_widget_manager.limit_input.value)
 
-        return query, params
+        return query_df
 
-    def construct_job_data_query(self, where_conditions_jobs, job_data_columns_dropdown, validate_button_jobs,
-                                 start_time_jobs,
-                                 end_time_jobs):
-        """
-        Constructs an SQL query based on the specified conditions and selected columns for job data retrieval.
-
-        Parameters:
-        :param where_conditions_jobs: A list of tuples, where each tuple contains three elements - the column name, the
-                                      operation (e.g., '=', '<>', '<', '>'), and the value to be used in the WHERE clause.
-        :param job_data_columns_dropdown: A list of strings, each representing a selected column for the query.
-        :param validate_button_jobs: A string indicating the validation status for time. If set to "Times Valid", the
-                                     start_time_jobs and end_time_jobs are considered.
-        :param start_time_jobs: A datetime object or string representing the start time for the query's time condition.
-                                This is considered if validate_button_jobs is set to "Times Valid".
-        :param end_time_jobs: A datetime object or string representing the end time for the query's time condition. This
-                              is considered if validate_button_jobs is set to "Times Valid".
-
-        Returns:
-        :return: A tuple containing two elements. The first element is a string representing the constructed SQL query. The
-                 second element is a list containing the parameter values to be used in the query.
-        """
+    def construct_job_data_query(self, df, where_conditions_jobs, job_data_columns_dropdown, validate_button_jobs,
+                                 start_time_jobs, end_time_jobs):
         valid_columns = {'jid', 'submit_time', 'start_time', 'end_time', 'runtime', 'timelimit', 'node_hrs',
                          'nhosts', 'ncores', 'ngpus', 'username', 'account', 'queue', 'state', 'jobname', 'exitcode',
                          'host_list', '*'}
+
         selected_columns = job_data_columns_dropdown
 
-        # Validate that the selected columns are all in the set of valid columns
+        # Validate selected columns
         if not all(column in valid_columns for column in selected_columns):
             raise ValueError("Invalid column name selected")
 
-        selected_columns_str = ', '.join(selected_columns)
-        table_name = 'job_data'
+        # Create a copy of the DataFrame with the selected columns
+        query_df = df[selected_columns]
 
+        # Handle DISTINCT
         if self.base_widget_manager.distinct_checkbox_jobs.value:
-            query = f"SELECT DISTINCT {selected_columns_str} FROM {table_name}"
-        else:
-            query = f"SELECT {selected_columns_str} FROM {table_name}"
+            query_df = query_df.drop_duplicates()
 
-        # Initialize params and local conditions list
-        params = []
-        local_conditions = [(col, op, "%s") for col, op, _ in where_conditions_jobs]
+        # Initialize local_conditions as a list of boolean conditions
+        local_conditions = []
 
-        # Extract values and add to params
-        params.extend([val for _, _, val in where_conditions_jobs])
+        # Handle basic conditions
+        for col, op, val in where_conditions_jobs:
+            if op == "=":
+                local_conditions.append(query_df[col] == val)
+            elif op == "!=":
+                local_conditions.append(query_df[col] != val)
+            elif op == "<":
+                local_conditions.append(query_df[col] < val)
+            elif op == "<=":
+                local_conditions.append(query_df[col] <= val)
+            elif op == ">":
+                local_conditions.append(query_df[col] > val)
+            elif op == ">=":
+                local_conditions.append(query_df[col] >= val)
 
         # Handle time validation
         if validate_button_jobs == "Times Valid":
-            local_conditions.append(("start_time", "BETWEEN", "%s AND %s"))
-            params.extend([start_time_jobs, end_time_jobs])
+            local_conditions.append(
+                (query_df['start_time'] >= start_time_jobs) & (query_df['start_time'] <= end_time_jobs))
 
         # Handle IN condition
         in_values = [value.strip() for value in self.base_widget_manager.in_values_textarea_jobs.value.split(',')]
-        if in_values and in_values[0]:  # Check if the first value is not empty
-            in_clause = ', '.join(['%s'] * len(in_values))
-            local_conditions.append((self.base_widget_manager.in_values_dropdown_jobs.value, "IN", f"({in_clause})"))
-            params.extend(in_values)
+        if in_values and in_values[0]:
+            local_conditions.append(query_df[self.base_widget_manager.in_values_dropdown_jobs.value].isin(in_values))
 
-        # Construct the WHERE clause
+        # Apply all conditions
         if local_conditions:
-            where_clause = " AND ".join([f"{col} {op} {val}" for col, op, val in local_conditions])
-            query += f" WHERE {where_clause}"
+            combined_condition = local_conditions[0]
+            for condition in local_conditions[1:]:
+                combined_condition &= condition
+            query_df = query_df[combined_condition]
 
         # Handle ORDER BY
         if self.base_widget_manager.order_by_dropdown_jobs.value != 'None':
-            query += f" ORDER BY {self.base_widget_manager.order_by_dropdown_jobs.value} {self.base_widget_manager.order_by_direction_dropdown_jobs.value}"
+            query_df = query_df.sort_values(by=self.base_widget_manager.order_by_dropdown_jobs.value,
+                                            ascending=self.base_widget_manager.order_by_direction_dropdown_jobs.value == 'ASC')
 
         # Handle LIMIT
         if self.base_widget_manager.limit_input_jobs.value > 0:
-            query += f" LIMIT {self.base_widget_manager.limit_input_jobs.value}"
+            query_df = query_df.head(self.base_widget_manager.limit_input_jobs.value)
 
-        return query, params
+        return query_df
 
     def get_mean(self, time_series: pd.DataFrame, rolling=False, window=None) -> pd.DataFrame:
         """
