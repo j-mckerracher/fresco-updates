@@ -30,8 +30,6 @@ class DatabaseManager():
         :return: A pandas DataFrame containing the combined data from all relevant Parquet files.
         """
         file_keys = self.list_s3_files(bucket_name, prefix)
-        print(file_keys)  # Print out the list of keys
-
         chunks = []
 
         # Convert start_time and end_time to year-month format
@@ -41,7 +39,7 @@ class DatabaseManager():
             end_year_month = end_time.strftime('%b%Y').lower()
 
         # Load each file into a pandas DataFrame if it falls within the date range
-        for file_key in tqdm(file_keys, desc="Loading Parquet files from S3"):
+        for file_key in tqdm(file_keys, desc="Loading data"):
             # Extract the month and year from the file name
             file_date_part = file_key.split('_')[3]
 

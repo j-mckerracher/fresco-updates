@@ -515,16 +515,13 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
-                print("Loading data from S3...")
                 host_df = self.db_service.load_parquet_files(
                     'fresco-host-data',
                     'job_ts_metrics_',
                     start_time=self.base_widget_manager.start_time_hosts.value,
                     end_time=self.base_widget_manager.end_time_hosts.value
                 )
-                print(f"Data loaded, DataFrame shape: {host_df.shape}")
 
-                print("Executing query on DataFrame...")
                 query_df = self.db_service.execute_query_on_dataframe(
                     host_df,
                     self.base_widget_manager.where_conditions_hosts,
@@ -533,7 +530,6 @@ class WidgetStateManager:
                     start_time=self.base_widget_manager.start_time_hosts.value,
                     end_time=self.base_widget_manager.end_time_hosts.value
                 )
-                print(f"Query executed, result shape: {query_df.shape}")
 
                 # Update the DataFrame with the query results
                 self.base_widget_manager.time_series_df = query_df
@@ -544,7 +540,6 @@ class WidgetStateManager:
                     display(no_data)
                     return  # Exit the function after printing the message
 
-                print("Displaying results...")
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
                 display(self.base_widget_manager.time_series_df)

@@ -143,7 +143,7 @@ class DisplayPlots:
 
     def _calculate_unit_stats(self, ts_df, units, unit_map, metric_func_map, outputs, pbar):
         unit_stat_dfs = {}
-        time_map = {'Days': 'D', 'Hours': 'H', 'Minutes': 'T', 'Seconds': 'S'}
+        time_map = {'Days': 'D', 'Hours': 'H', 'Minutes': 'min', 'Seconds': 'S'}
 
         for unit in units:
             unit_stat_dfs[unit] = {}
