@@ -282,8 +282,6 @@ class DataProcessor:
         values = [val.strip() for val in values_str.split(',')]
         return values
 
-    import pandas as pd
-
     def construct_query_hosts(self, df, where_conditions_hosts, host_data_columns_dropdown, validate_button_hosts,
                               start_time_hosts, end_time_hosts):
         # Select columns

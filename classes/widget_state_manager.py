@@ -3,6 +3,7 @@ from classes.database_manager import DatabaseManager
 from classes.data_processor import DataProcessor
 from ipywidgets import widgets
 from datetime import datetime
+import traceback
 
 
 class WidgetStateManager:
@@ -440,8 +441,8 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
-                # Load data from S3 based on the specified date range
-                job_df = self.data_processor.load_parquet_files(
+                # Load data from S3 based on the specified date range using database_manager
+                job_df = self.db_service.load_parquet_files(
                     'fresco-job-data',
                     'job_accounting_',
                     start_time=self.base_widget_manager.start_time_jobs.value,
@@ -449,7 +450,7 @@ class WidgetStateManager:
                 )
 
                 # Construct the pandas query
-                query_df = self.data_processor.execute_query_on_dataframe(
+                query_df = self.db_service.execute_query_on_dataframe(
                     job_df,
                     self.base_widget_manager.where_conditions_jobs,
                     self.base_widget_manager.job_data_columns_dropdown.value,
@@ -514,16 +515,17 @@ class WidgetStateManager:
                 print("Please enter a valid time window before executing the query.")
                 return
             try:
-                # Load data from S3 based on the specified date range
-                host_df = self.data_processor.load_parquet_files(
+                print("Loading data from S3...")
+                host_df = self.db_service.load_parquet_files(
                     'fresco-host-data',
                     'job_ts_metrics_',
                     start_time=self.base_widget_manager.start_time_hosts.value,
                     end_time=self.base_widget_manager.end_time_hosts.value
                 )
+                print(f"Data loaded, DataFrame shape: {host_df.shape}")
 
-                # Construct the pandas query
-                query_df = self.data_processor.execute_query_on_dataframe(
+                print("Executing query on DataFrame...")
+                query_df = self.db_service.execute_query_on_dataframe(
                     host_df,
                     self.base_widget_manager.where_conditions_hosts,
                     self.base_widget_manager.host_data_columns_dropdown.value,
@@ -531,6 +533,7 @@ class WidgetStateManager:
                     start_time=self.base_widget_manager.start_time_hosts.value,
                     end_time=self.base_widget_manager.end_time_hosts.value
                 )
+                print(f"Query executed, result shape: {query_df.shape}")
 
                 # Update the DataFrame with the query results
                 self.base_widget_manager.time_series_df = query_df
@@ -541,6 +544,7 @@ class WidgetStateManager:
                     display(no_data)
                     return  # Exit the function after printing the message
 
+                print("Displaying results...")
                 results = widgets.HTML("<h4>Results for query:</h4>")
                 display(results)
                 display(self.base_widget_manager.time_series_df)
@@ -570,7 +574,8 @@ class WidgetStateManager:
                 display(button_box)
 
             except Exception as e:
-                print(f"An error occurred: {e}")
+                print(f"An error occurred in on_execute_button_clicked_hosts: {e}")
+                traceback.print_exc()  # Print the full stack trace
 
     def on_order_by_changed(self, change):
         """

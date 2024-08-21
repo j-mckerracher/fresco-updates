@@ -1,3 +1,4 @@
+import io
 import pandas as pd
 import boto3
 from tqdm.notebook import tqdm
@@ -29,6 +30,8 @@ class DatabaseManager():
         :return: A pandas DataFrame containing the combined data from all relevant Parquet files.
         """
         file_keys = self.list_s3_files(bucket_name, prefix)
+        print(file_keys)  # Print out the list of keys
+
         chunks = []
 
         # Convert start_time and end_time to year-month format
@@ -40,24 +43,31 @@ class DatabaseManager():
         # Load each file into a pandas DataFrame if it falls within the date range
         for file_key in tqdm(file_keys, desc="Loading Parquet files from S3"):
             # Extract the month and year from the file name
-            file_date_part = file_key.split('_')[2]
+            file_date_part = file_key.split('_')[3]
 
             if start_time and end_time:
                 # Load file if within the specified date range
                 if start_year_month <= file_date_part <= end_year_month:
-                    obj = self.s3_client.get_object(Bucket=bucket_name, Key=file_key)
-                    df = pd.read_parquet(obj['Body'])
-                    chunks.append(df)
+                    try:
+                        obj = self.s3_client.get_object(Bucket=bucket_name, Key=file_key)
+                        data = obj['Body'].read()  # Read the content of the S3 object into memory
+                        df = pd.read_parquet(io.BytesIO(data))  # Wrap in BytesIO for seekable file-like object
+                        chunks.append(df)
+                    except Exception as e:
+                        print(f"Error loading {file_key}: {e}")
+                        raise
             else:
                 # Load all files if no date range is specified
                 obj = self.s3_client.get_object(Bucket=bucket_name, Key=file_key)
-                df = pd.read_parquet(obj['Body'])
+                data = obj['Body'].read()
+                df = pd.read_parquet(io.BytesIO(data))
                 chunks.append(df)
 
         # Combine all chunks into a single DataFrame
         return pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
 
-    def execute_query_on_dataframe(self, df, conditions, selected_columns, validate_time=False, start_time=None, end_time=None):
+    def execute_query_on_dataframe(self, df, conditions, selected_columns, validate_time=False, start_time=None,
+                                   end_time=None):
         """
         Executes filtering and querying on a pandas DataFrame.
 
@@ -69,7 +79,11 @@ class DatabaseManager():
         :param end_time: The end time for filtering if validate_time is True.
         :return: A filtered pandas DataFrame.
         """
-        query_df = df[selected_columns]
+        # Handle the case where '*' means select all columns
+        if selected_columns == ('*',):
+            query_df = df
+        else:
+            query_df = df[list(selected_columns)]
 
         local_conditions = []
 
@@ -90,6 +104,9 @@ class DatabaseManager():
 
         # Filter by time if required
         if validate_time:
+            query_df['time'] = pd.to_datetime(query_df['time'])
+            start_time = pd.to_datetime(start_time)
+            end_time = pd.to_datetime(end_time)
             local_conditions.append((query_df['time'] >= start_time) & (query_df['time'] <= end_time))
 
         # Apply all conditions
@@ -100,3 +117,5 @@ class DatabaseManager():
             query_df = query_df[combined_condition]
 
         return query_df
+
+
